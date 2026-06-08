@@ -1,0 +1,15 @@
+services:
+  mysql:
+    image: mysql:8.3
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: wp_ad_community
+      MYSQL_USER: wpads
+      MYSQL_PASSWORD: wpads
+    ports:
+      - "3307:3306"
+    volumes:
+      - wp-ad-community-mysql:/var/lib/mysql
+
+volumes:
+  wp-ad-community-mysql:

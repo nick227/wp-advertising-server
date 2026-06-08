@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum SiteStatus {
+  ACTIVE
+  PAUSED
+  BLOCKED
+}
+
+enum AdStatus {
+  ACTIVE
+  PAUSED
+  BLOCKED
+  PENDING
+  REJECTED
+}
+
+enum EventType {
+  IMPRESSION
+  CLICK
+}
+
+model CommunitySite {
+  id            String     @id @default(cuid())
+  siteUrl       String     @unique @db.VarChar(512)
+  siteDomain    String     @unique @db.VarChar(255)
+  siteName      String?    @db.VarChar(255)
+  status        SiteStatus @default(ACTIVE)
+  optedIn       Boolean    @default(false)
+  publicKey     String     @unique @db.VarChar(96)
+  pluginVersion String?    @db.VarChar(48)
+  lastSeenAt    DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  ads           CommunityAd[]
+  servedEvents  CommunityEvent[] @relation("SourceSiteEvents")
+  targetEvents  CommunityEvent[] @relation("TargetSiteEvents")
+
+  @@index([optedIn, status])
+  @@index([status, optedIn])
+  @@index([lastSeenAt])
+}
+
+model CommunityAd {
+  id          String        @id @default(cuid())
+  siteId      String
+  site        CommunitySite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  title       String        @db.VarChar(160)
+  imageUrl    String        @db.VarChar(1024)
+  targetUrl   String        @db.VarChar(1024)
+  status      AdStatus      @default(ACTIVE)
+  weight      Int           @default(1)
+  servedCount Int           @default(0)
+  clickCount  Int           @default(0)
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  events      CommunityEvent[]
+
+  @@index([status])
+  @@index([siteId, status])
+  @@index([createdAt])
+}
+
+model CommunityEvent {
+  id             String         @id @default(cuid())
+  adId           String?
+  ad             CommunityAd?   @relation(fields: [adId], references: [id], onDelete: SetNull)
+  sourceSiteId   String?
+  sourceSite     CommunitySite? @relation("SourceSiteEvents", fields: [sourceSiteId], references: [id], onDelete: SetNull)
+  targetSiteId   String?
+  targetSite     CommunitySite? @relation("TargetSiteEvents", fields: [targetSiteId], references: [id], onDelete: SetNull)
+  type           EventType
+  referrerDomain String?        @db.VarChar(255)
+  userAgentHash  String?        @db.VarChar(96)
+  createdAt      DateTime       @default(now())
+
+  @@index([type, createdAt])
+  @@index([adId, type])
+  @@index([adId, createdAt])
+  @@index([sourceSiteId, createdAt])
+  @@index([targetSiteId, createdAt])
+}
+
+model CommunityEventRollup {
+  id             String    @id @default(cuid())
+  adId           String
+  sourceSiteId   String    @default("") @db.VarChar(191)
+  type           EventType
+  bucketMinute   DateTime
+  count          Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([adId, sourceSiteId, type, bucketMinute])
+  @@index([bucketMinute])
+  @@index([adId, bucketMinute])
+  @@index([sourceSiteId, bucketMinute])
+}
+
+model BlockedDomain {
+  id        String   @id @default(cuid())
+  domain    String   @unique @db.VarChar(255)
+  reason    String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+}

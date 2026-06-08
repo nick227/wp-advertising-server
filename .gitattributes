@@ -1,0 +1,7 @@
+# Normalize line endings to LF on all platforms.
+# Railway (and all Linux hosts) require LF.
+* text=auto eol=lf
+
+# Keep Windows shell scripts with CRLF if any are added.
+*.cmd text eol=crlf
+*.bat text eol=crlf

@@ -1,0 +1,265 @@
+openapi: 3.1.0
+info:
+  title: WP Ad Community API
+  version: 4.0.0
+  description: Ultra-light Community Ads API with final operations hardening, cache-only serving, request IDs, robust event queue, and safer admin operations.
+servers:
+  - url: http://localhost:4100/v1
+paths:
+  /health:
+    get:
+      summary: Health check with DB probe
+      responses:
+        '200': { description: OK }
+        '503': { description: Database unavailable }
+  /metrics:
+    get:
+      summary: Runtime cache, queue, and rate limit metrics
+      responses:
+        '200': { description: Metrics }
+  /sites/register:
+    post:
+      summary: Register or refresh a participating WordPress site
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterSiteRequest' }
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterSiteResponse' }
+  /sites/heartbeat:
+    post:
+      summary: Refresh last-seen status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SiteAuthRequest' }
+      responses:
+        '200': { description: Heartbeat accepted }
+  /sites/opt-in:
+    post:
+      summary: Opt site into community display network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SiteAuthRequest' }
+      responses:
+        '200': { description: Site opted in }
+  /sites/opt-out:
+    post:
+      summary: Opt site out of community display network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SiteAuthRequest' }
+      responses:
+        '200': { description: Site opted out }
+  /sites/ad:
+    post:
+      summary: Upsert the site's community creative
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpsertAdRequest' }
+      responses:
+        '200':
+          description: Ad saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunityAd' }
+  /community/serve:
+    get:
+      summary: Serve one eligible community ad from the cached round-robin rotation
+      parameters:
+        - in: query
+          name: siteUrl
+          required: true
+          schema: { type: string, format: uri }
+        - in: query
+          name: zone
+          schema: { type: string, maxLength: 80 }
+        - in: query
+          name: tracking
+          schema: { type: string, enum: ['0', '1'] }
+      responses:
+        '200':
+          description: Community ad
+          headers:
+            Cache-Control:
+              schema: { type: string }
+            x-request-id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServeResponse' }
+        '204': { description: No eligible ad }
+  /community/events:
+    post:
+      summary: Queue an impression or click event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventRequest' }
+      responses:
+        '202': { description: Queued }
+  /community/events/impression:
+    get:
+      summary: Tracking pixel endpoint
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 1x1 GIF }
+  /community/events/click:
+    get:
+      summary: Click tracking redirect endpoint
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        '302': { description: Redirect to target URL }
+  /community/status:
+    get:
+      summary: Public cache and event queue status
+      responses:
+        '200': { description: Status }
+  /admin/cache/rebuild:
+    post:
+      summary: Rebuild rotation cache now
+      security: [{ adminToken: [] }]
+      responses:
+        '200': { description: Cache rebuilt }
+        '401': { description: Admin token required }
+        '503': { description: Admin auth not configured }
+  /admin/events/flush:
+    post:
+      summary: Flush queued events now
+      security: [{ adminToken: [] }]
+      responses:
+        '200': { description: Flushed }
+        '401': { description: Admin token required }
+        '503': { description: Admin auth not configured }
+  /admin/metrics:
+    get:
+      summary: Admin metrics
+      security: [{ adminToken: [] }]
+      responses:
+        '200': { description: Metrics }
+        '401': { description: Admin token required }
+        '503': { description: Admin auth not configured }
+  /admin/sites:
+    get:
+      summary: Recent registered sites
+      security: [{ adminToken: [] }]
+      responses:
+        '200': { description: Sites }
+        '401': { description: Admin token required }
+        '503': { description: Admin auth not configured }
+  /admin/ads:
+    get:
+      summary: Recent community ads
+      security: [{ adminToken: [] }]
+      responses:
+        '200': { description: Ads }
+        '401': { description: Admin token required }
+        '503': { description: Admin auth not configured }
+components:
+  securitySchemes:
+    adminToken:
+      type: http
+      scheme: bearer
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+    SiteAuthRequest:
+      type: object
+      required: [siteId, publicKey]
+      properties:
+        siteId: { type: string }
+        publicKey: { type: string }
+    RegisterSiteRequest:
+      type: object
+      required: [siteUrl]
+      properties:
+        siteUrl: { type: string, format: uri }
+        siteName: { type: string, maxLength: 255 }
+        pluginVersion: { type: string, maxLength: 48 }
+    RegisterSiteResponse:
+      type: object
+      required: [siteId, publicKey, status, optedIn, alreadyRegistered]
+      properties:
+        siteId: { type: string }
+        publicKey: { type: string }
+        secret: { type: string }
+        status: { type: string }
+        optedIn: { type: boolean }
+        alreadyRegistered: { type: boolean }
+    UpsertAdRequest:
+      allOf:
+        - $ref: '#/components/schemas/SiteAuthRequest'
+        - type: object
+          required: [title, imageUrl, targetUrl]
+          properties:
+            title: { type: string, maxLength: 160 }
+            imageUrl: { type: string, format: uri }
+            targetUrl: { type: string, format: uri }
+            status: { type: string, enum: [ACTIVE, PAUSED] }
+            weight: { type: integer, minimum: 1, maximum: 10 }
+    CommunityAd:
+      type: object
+      properties:
+        id: { type: string }
+        siteId: { type: string }
+        title: { type: string }
+        imageUrl: { type: string }
+        targetUrl: { type: string }
+        status: { type: string }
+        weight: { type: integer }
+        servedCount: { type: integer }
+        clickCount: { type: integer }
+        updatedAt: { type: string, format: date-time }
+    ServeResponse:
+      type: object
+      required: [adId, siteId, title, imageUrl, targetUrl, network]
+      properties:
+        adId: { type: string }
+        siteId: { type: string }
+        title: { type: string }
+        imageUrl: { type: string }
+        targetUrl: { type: string }
+        impressionUrl: { type: string, format: uri }
+        clickUrl: { type: string, format: uri }
+        network:
+          type: object
+          properties:
+            servedBy: { type: string, enum: [community] }
+            algorithm: { type: string, enum: [cached-round-robin] }
+            requestId: { type: string }
+            cacheVersion: { type: integer }
+    EventRequest:
+      type: object
+      required: [token, type]
+      properties:
+        token: { type: string }
+        type: { type: string, enum: [IMPRESSION, CLICK] }
+        referrer: { type: string }

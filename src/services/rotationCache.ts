@@ -1,0 +1,177 @@
+import { config } from '../config.js';
+import { prisma } from '../lib/prisma.js';
+import { normalizeDomain } from '../lib/urlUtils.js';
+
+export type RotationAd = {
+  adId: string;
+  siteId: string;
+  siteDomain: string;
+  title: string;
+  imageUrl: string;
+  targetUrl: string;
+  weight: number;
+};
+
+type SiteSnapshot = { id: string; siteDomain: string; optedIn: boolean; status: string };
+type CacheState = {
+  ads: RotationAd[];
+  siteByDomain: Map<string, SiteSnapshot>;
+  adById: Map<string, RotationAd>;
+  refreshedAt: number;
+  cursor: number;
+  version: number;
+  lastBuildMs: number | null;
+  lastError: string | null;
+  loading?: Promise<void>;
+};
+
+const state: CacheState = {
+  ads: [],
+  siteByDomain: new Map(),
+  adById: new Map(),
+  refreshedAt: 0,
+  cursor: 0,
+  version: 0,
+  lastBuildMs: null,
+  lastError: null,
+};
+
+export const rotationCache = {
+  async warm() {
+    await refreshRotationCache({ allowStale: false });
+  },
+  async invalidate() {
+    state.refreshedAt = 0;
+    refreshRotationCache({ allowStale: true }).catch((error) => {
+      console.error('rotation cache refresh failed after invalidation', error);
+    });
+  },
+  async rebuildNow() {
+    await refreshRotationCache({ allowStale: false, force: true });
+    return this.status();
+  },
+  async getSnapshot() {
+    const expired = Date.now() - state.refreshedAt > config.rotationCacheTtlMs;
+    if (expired) {
+      await refreshRotationCache({ allowStale: state.ads.length > 0 });
+    }
+    return {
+      ads: state.ads,
+      siteByDomain: state.siteByDomain,
+      refreshedAt: state.refreshedAt,
+      cursor: state.cursor,
+      version: state.version,
+    };
+  },
+  getAd(adId: string) {
+    return state.adById.get(adId) || null;
+  },
+  nextAd(sourceSiteId: string, sourceDomain?: string) {
+    if (state.ads.length === 0) return null;
+    const attempts = state.ads.length;
+    for (let i = 0; i < attempts; i += 1) {
+      const idx = state.cursor % state.ads.length;
+      state.cursor = (state.cursor + 1) % state.ads.length;
+      const ad = state.ads[idx];
+      if (ad.siteId !== sourceSiteId && (!sourceDomain || normalizeDomain(ad.siteDomain) !== normalizeDomain(sourceDomain))) return ad;
+    }
+    return null;
+  },
+  status() {
+    return {
+      version: state.version,
+      items: state.ads.length,
+      sites: state.siteByDomain.size,
+      lastBuiltAt: state.refreshedAt ? new Date(state.refreshedAt).toISOString() : null,
+      lastBuildMs: state.lastBuildMs,
+      lastError: state.lastError,
+      ttlMs: config.rotationCacheTtlMs,
+      cursor: state.cursor,
+      loading: Boolean(state.loading),
+    };
+  },
+};
+
+async function refreshRotationCache(options: { allowStale?: boolean; force?: boolean } = {}) {
+  const expired = Date.now() - state.refreshedAt > config.rotationCacheTtlMs;
+  if (!options.force && !expired && state.refreshedAt > 0) return;
+
+  if (state.loading) {
+    if (options.allowStale) return;
+    await state.loading;
+    return;
+  }
+
+  state.loading = doRefresh().finally(() => {
+    state.loading = undefined;
+  });
+
+  if (options.allowStale) return;
+  await state.loading;
+}
+
+async function doRefresh() {
+  const started = Date.now();
+  try {
+    const [ads, sites] = await Promise.all([
+      prisma.communityAd.findMany({
+        where: {
+          status: 'ACTIVE',
+          site: { optedIn: true, status: 'ACTIVE' },
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          siteId: true,
+          title: true,
+          imageUrl: true,
+          targetUrl: true,
+          weight: true,
+          site: { select: { siteDomain: true } },
+        },
+      }),
+      prisma.communitySite.findMany({
+        select: { id: true, siteDomain: true, optedIn: true, status: true },
+      }),
+    ]);
+
+    const weighted: RotationAd[] = [];
+    for (const ad of ads) {
+      const copies = Math.max(1, Math.min(ad.weight || 1, 10));
+      for (let i = 0; i < copies; i += 1) {
+        weighted.push({
+          adId: ad.id,
+          siteId: ad.siteId,
+          siteDomain: normalizeDomain(ad.site.siteDomain),
+          title: ad.title,
+          imageUrl: ad.imageUrl,
+          targetUrl: ad.targetUrl,
+          weight: ad.weight,
+        });
+      }
+    }
+
+    // Atomic-ish swap: build all structures first, then replace the live state together.
+    const nextAdById = new Map(weighted.map((ad) => [ad.adId, ad]));
+    const nextSiteByDomain = new Map<string, SiteSnapshot>();
+    for (const site of sites) {
+      const siteDomain = normalizeDomain(site.siteDomain);
+      nextSiteByDomain.set(siteDomain, { ...site, siteDomain });
+    }
+    const nextCursor = weighted.length === 0 ? 0 : state.cursor % weighted.length;
+
+    state.ads = weighted;
+    state.adById = nextAdById;
+    state.siteByDomain = nextSiteByDomain;
+    state.cursor = nextCursor;
+    state.refreshedAt = Date.now();
+    state.version += 1;
+    state.lastBuildMs = Date.now() - started;
+    state.lastError = null;
+  } catch (error) {
+    state.lastBuildMs = Date.now() - started;
+    state.lastError = error instanceof Error ? error.message : 'Unknown cache refresh error';
+    // Keep the previous cache. Serve can continue from stale-but-known-good data.
+    throw error;
+  }
+}
