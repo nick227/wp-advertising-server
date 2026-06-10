@@ -1,5 +1,10 @@
 [phases.install]
-cmds = ["npm ci --cache /root/.npm --prefer-offline"]
+cmds = [
+  "npm ci --cache /root/.npm --prefer-offline"
+]
 
 [phases.build]
-cmds = ["npx prisma generate", "npm run build"]z
+cmds = [
+  "npx prisma generate",
+  "npm run build"
+]
