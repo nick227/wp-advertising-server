@@ -67,16 +67,34 @@ export const rotationCache = {
     return state.adById.get(adId) || null;
   },
   nextAd(sourceSiteId: string, sourceDomain?: string) {
-    if (state.ads.length === 0) return null;
-    const attempts = state.ads.length;
-    for (let i = 0; i < attempts; i += 1) {
-      const idx = state.cursor % state.ads.length;
-      state.cursor = (state.cursor + 1) % state.ads.length;
-      const ad = state.ads[idx];
-      if (ad.siteId !== sourceSiteId && (!sourceDomain || normalizeDomain(ad.siteDomain) !== normalizeDomain(sourceDomain))) return ad;
+  if (state.ads.length === 0) return null;
+
+  const normalizedSourceDomain = sourceDomain ? normalizeDomain(sourceDomain) : undefined;
+  let fallback: RotationAd | null = null;
+
+  const attempts = state.ads.length;
+
+  for (let i = 0; i < attempts; i += 1) {
+    const idx = state.cursor % state.ads.length;
+    state.cursor = (state.cursor + 1) % state.ads.length;
+
+    const ad = state.ads[idx];
+    const isSameSite =
+      ad.siteId === sourceSiteId ||
+      Boolean(normalizedSourceDomain && normalizeDomain(ad.siteDomain) === normalizedSourceDomain);
+
+    if (!isSameSite) {
+      return ad;
     }
-    return null;
-  },
+
+    // Keep the first self-ad as fallback for one-site MVP/no-fill prevention.
+    if (!fallback) {
+      fallback = ad;
+    }
+  }
+
+  return fallback;
+},
   status() {
     return {
       version: state.version,
