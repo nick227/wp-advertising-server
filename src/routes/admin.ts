@@ -29,6 +29,8 @@ import {
   setPostModeration,
 } from '../services/forumService.js';
 import { seedForumIfEmpty } from '../services/forumSeed.js';
+import { seedSoftLaunchInventory, softLaunchSeedAllowed } from '../services/softLaunchSeed.js';
+import { forbidden } from '../lib/errors.js';
 
 export const adminRouter = Router();
 
@@ -227,6 +229,17 @@ adminRouter.post('/admin/forum/seed', async (req, res, next) => {
   try {
     const result = await seedForumIfEmpty();
     res.json({ ok: true, requestId: req.requestId, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/admin/soft-launch/seed', async (req, res, next) => {
+  try {
+    if (!softLaunchSeedAllowed()) throw forbidden('ALLOW_SOFT_LAUNCH_SEED=1 is required');
+    const result = await seedSoftLaunchInventory();
+    const rotation = await rotationCache.rebuildNow();
+    res.json({ ok: true, requestId: req.requestId, ...result, rotation });
   } catch (error) {
     next(error);
   }
