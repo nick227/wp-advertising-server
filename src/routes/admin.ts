@@ -22,6 +22,13 @@ import {
   listAdminLicenses,
   listAdminSites,
 } from '../services/adminQueryService.js';
+import {
+  deleteForumPost,
+  listForumAdmin,
+  setMembershipCanPost,
+  setPostModeration,
+} from '../services/forumService.js';
+import { seedForumIfEmpty } from '../services/forumSeed.js';
 
 export const adminRouter = Router();
 
@@ -172,6 +179,54 @@ adminRouter.post('/admin/ads/:adId/status', async (req, res, next) => {
     const { status } = adStatusSchema.parse(req.body ?? {});
     const ad = await setAdStatus(req.params.adId, status);
     res.json({ ok: true, requestId: req.requestId, ad });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/admin/forum', async (req, res, next) => {
+  try {
+    const data = await listForumAdmin();
+    res.json({ ok: true, requestId: req.requestId, ...data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/admin/forum/posts/:postId/moderate', async (req, res, next) => {
+  try {
+    const post = await setPostModeration(req.params.postId, {
+      isPinned: typeof req.body?.isPinned === 'boolean' ? req.body.isPinned : undefined,
+      isLocked: typeof req.body?.isLocked === 'boolean' ? req.body.isLocked : undefined,
+    });
+    res.json({ ok: true, requestId: req.requestId, post });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/admin/forum/posts/:postId/delete', async (req, res, next) => {
+  try {
+    const result = await deleteForumPost(req.params.postId);
+    res.json({ ok: true, requestId: req.requestId, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/admin/forum/members/:membershipId/can-post', async (req, res, next) => {
+  try {
+    const membership = await setMembershipCanPost(req.params.membershipId, Boolean(req.body?.canPost));
+    res.json({ ok: true, requestId: req.requestId, membership });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/admin/forum/seed', async (req, res, next) => {
+  try {
+    const result = await seedForumIfEmpty();
+    res.json({ ok: true, requestId: req.requestId, ...result });
   } catch (error) {
     next(error);
   }

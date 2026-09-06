@@ -5,11 +5,22 @@ import { isStripeCheckoutConfigured, config } from '../config.js';
 import { lookupLicenseForCheckoutSession } from '../services/billingService.js';
 import { checkoutSessionSchema, createCheckoutSession } from '../services/checkoutService.js';
 import { requireStripeCheckout } from '../services/stripeClient.js';
+import {
+  createCommentSchema,
+  createForumComment,
+  createForumPost,
+  createPostSchema,
+  getForumPost,
+  joinForum,
+  joinForumSchema,
+  listForumPosts,
+} from '../services/forumService.js';
+import { HttpError } from '../lib/errors.js';
+import { communityForumIndex, communityForumPost } from './communityForum.js';
 import { renderPage } from './layout.js';
 import {
   checkoutPage,
   checkoutSuccessPage,
-  communityPage,
   contactPage,
   helpArticle,
   helpIndexPage,
@@ -160,10 +171,90 @@ export function createPublicSiteRouter() {
     }
   });
 
-  router.get('/community', html(
-    { title: 'Community — WP Advertising', description: 'Trial and Pro member community for publishers and advertisers.', path: '/community' },
-    communityPage(),
-  ));
+  router.get('/community', async (_req, res, next) => {
+    try {
+      const posts = await listForumPosts();
+      res.setHeader('Cache-Control', 'public, max-age=30');
+      res.type('html').send(renderPage(
+        { title: 'Community — WP Advertising', description: 'Trial and Pro member forum for publishers and advertisers.', path: '/community' },
+        communityForumIndex(posts),
+      ));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/community/posts/:slug', async (req, res, next) => {
+    try {
+      const post = await getForumPost(req.params.slug);
+      res.setHeader('Cache-Control', 'public, max-age=15');
+      res.type('html').send(renderPage(
+        { title: `${post.title} — Community`, description: post.title, path: `/community/posts/${post.slug}` },
+        communityForumPost(post),
+      ));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/community/join', async (req, res, next) => {
+    try {
+      const input = joinForumSchema.parse(req.body);
+      await joinForum(input);
+      res.redirect(303, '/community?joined=1');
+    } catch (error) {
+      if (error instanceof HttpError) {
+        const posts = await listForumPosts();
+        res.status(error.status).type('html').send(renderPage(
+          { title: 'Community — WP Advertising', description: 'Join failed', path: '/community' },
+          communityForumIndex(posts, error.message),
+        ));
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.post('/community/posts', async (req, res, next) => {
+    try {
+      const input = createPostSchema.parse(req.body);
+      const post = await createForumPost(input);
+      res.redirect(303, `/community/posts/${encodeURIComponent(post.slug)}`);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        const posts = await listForumPosts();
+        res.status(error.status).type('html').send(renderPage(
+          { title: 'Community — WP Advertising', description: 'Post failed', path: '/community' },
+          communityForumIndex(posts, error.message),
+        ));
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.post('/community/posts/:slug/comments', async (req, res, next) => {
+    try {
+      const input = createCommentSchema.parse(req.body);
+      await createForumComment(req.params.slug, input);
+      res.redirect(303, `/community/posts/${encodeURIComponent(req.params.slug)}`);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        try {
+          const post = await getForumPost(req.params.slug);
+          res.status(error.status).type('html').send(renderPage(
+            { title: `${post.title} — Community`, description: post.title, path: `/community/posts/${post.slug}` },
+            communityForumPost(post, error.message),
+          ));
+          return;
+        } catch {
+          next(error);
+          return;
+        }
+      }
+      next(error);
+    }
+  });
 
   router.get('/help', html(
     { title: 'Help — WP Advertising', description: 'Documentation for local ads, community network, licensing, and billing.', path: '/help' },

@@ -6,6 +6,7 @@ vi.mock('../src/lib/prisma.js', () => ({
     $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]),
     communitySite: { findMany: vi.fn().mockResolvedValue([]) },
     communityAd: { findMany: vi.fn().mockResolvedValue([]) },
+    communityPost: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 

@@ -12,6 +12,7 @@ import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createPublicSiteRouter } from './public-site/router.js';
 import { entitlementsRouter } from './routes/entitlements.js';
+import { forumRouter } from './routes/forum.js';
 import { stripeWebhookHandler } from './routes/stripeWebhook.js';
 
 export function createApp() {
@@ -52,6 +53,7 @@ export function createApp() {
   v1.use(adsRouter);
   v1.use(communityRouter);
   v1.use(entitlementsRouter);
+  v1.use(forumRouter);
   v1.use(adminRouter);
 
   app.use('/v1', v1);

@@ -282,37 +282,6 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function communityPage(): string {
-  return `
-  <section class="page-hero"><div class="wrap">
-    <p class="brand-mark">Community</p>
-    <h1>Member network for publishers and advertisers.</h1>
-    <p class="hero-lead">Discussion, governance topics, and education for Trial and Pro members. The full forum ships after entitlement.</p>
-  </div></section>
-  <section class="section" style="padding-top:0"><div class="wrap">
-    <div class="notice">Community posting is gated. Start a Trial or activate Pro to join. Expired members will keep read-only access to announcements.</div>
-    <div class="split" style="margin-top:1.5rem">
-      <article>
-        <h3>Pinned topics</h3>
-        <ul>
-          <li>How inventory exchange works</li>
-          <li>How impressions and clicks are counted</li>
-          <li>Publisher privacy &amp; anonymized reporting</li>
-          <li>High-traffic weighting discussion</li>
-          <li>Publisher identity transparency</li>
-          <li>Advertising standards &amp; roadmap</li>
-        </ul>
-      </article>
-      <article>
-        <h3>Access</h3>
-        <p>Active Trial/Pro: read, post, comment, and participate in the ad network.</p>
-        <p>Expired: read-only announcements, no network participation.</p>
-        <a class="btn btn-primary" href="/pricing">Start 30-Day Trial</a>
-      </article>
-    </div>
-  </div></section>`;
-}
-
 export function helpIndexPage(): string {
   const topics = [
     ['/help/getting-started', 'Getting started', 'Install, create a house ad, and understand Free vs Trial.'],

@@ -4,6 +4,7 @@ import { config, configSummary, validateConfig } from './config.js';
 import { eventQueue } from './services/eventQueue.js';
 import { rotationCache } from './services/rotationCache.js';
 import { entitlementSweeper } from './services/entitlementService.js';
+import { seedForumIfEmpty } from './services/forumSeed.js';
 import { prisma } from './lib/prisma.js';
 
 const validation = validateConfig();
@@ -30,6 +31,13 @@ async function probeDatabase(retries = 3, delayMs = 2000) {
 }
 
 await probeDatabase();
+
+try {
+  const seed = await seedForumIfEmpty();
+  if (seed.seeded) console.log(`community forum seeded (${seed.posts} pinned posts)`);
+} catch (error) {
+  console.error('community forum seed failed', error);
+}
 
 const app = createApp();
 const server = createServer(app);
