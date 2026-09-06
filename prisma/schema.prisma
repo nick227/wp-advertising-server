@@ -129,6 +129,12 @@ model CommunityEventRollup {
   @@index([sourceSiteId, bucketMinute])
 }
 
+model StripeEvent {
+  id          String   @id @db.VarChar(255)
+  type        String   @db.VarChar(120)
+  processedAt DateTime @default(now())
+}
+
 model BlockedDomain {
   id        String   @id @default(cuid())
   domain    String   @unique @db.VarChar(255)

@@ -12,6 +12,7 @@ import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createPublicSiteRouter } from './public-site/router.js';
 import { entitlementsRouter } from './routes/entitlements.js';
+import { stripeWebhookHandler } from './routes/stripeWebhook.js';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,10 @@ export function createApp() {
     },
   }));
   app.use(cors({ origin: config.corsOrigins.includes('*') ? true : config.corsOrigins }));
+
+  // Stripe needs the raw body for signature verification.
+  app.post('/v1/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
   app.use(express.json({ limit: '64kb' }));
   app.use(express.urlencoded({ extended: false, limit: '32kb' }));
   app.use(requestIdMiddleware);

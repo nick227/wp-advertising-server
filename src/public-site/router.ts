@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { Router, type RequestHandler } from 'express';
+import { isStripeCheckoutConfigured } from '../config.js';
+import { lookupLicenseForCheckoutSession } from '../services/billingService.js';
+import { checkoutSessionSchema, createCheckoutSession } from '../services/checkoutService.js';
+import { requireStripeCheckout } from '../services/stripeClient.js';
 import { renderPage } from './layout.js';
 import {
   checkoutPage,
@@ -95,24 +99,57 @@ export function createPublicSiteRouter() {
     pricingPage(),
   ));
 
-  router.get('/checkout', html(
-    { title: 'Checkout — WP Advertising', description: 'Start Stripe-hosted Checkout for WP Advertising Pro.', path: '/checkout' },
-    checkoutPage(),
-  ));
+  router.get('/checkout', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(renderPage(
+      { title: 'Checkout — WP Advertising', description: 'Start Stripe-hosted Checkout for WP Advertising Pro.', path: '/checkout' },
+      checkoutPage({
+        configured: isStripeCheckoutConfigured(),
+        canceled: req.query.canceled === '1',
+      }),
+    ));
+  });
 
-  router.get('/checkout/success', html(
-    { title: 'Checkout success — WP Advertising', description: 'Pro activation next steps after Stripe Checkout.', path: '/checkout/success' },
-    checkoutSuccessPage(),
-  ));
+  router.get('/checkout/success', async (req, res, next) => {
+    try {
+      const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : '';
+      let body = checkoutSuccessPage();
+      if (sessionId && isStripeCheckoutConfigured()) {
+        try {
+          const result = await lookupLicenseForCheckoutSession(sessionId);
+          body = checkoutSuccessPage({
+            licenseKey: result.license?.licenseKey ?? null,
+            pending: result.pending,
+            email: result.session.customer_details?.email || result.session.customer_email,
+          });
+        } catch {
+          body = checkoutSuccessPage({ pending: true });
+        }
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage(
+        { title: 'Checkout success — WP Advertising', description: 'Pro activation next steps after Stripe Checkout.', path: '/checkout/success' },
+        body,
+      ));
+    } catch (error) {
+      next(error);
+    }
+  });
 
-  router.post('/checkout/session', (_req, res) => {
-    res.status(503).json({
-      ok: false,
-      error: {
-        code: 'CHECKOUT_NOT_CONFIGURED',
-        message: 'Stripe Checkout is not connected yet. Contact support for early Pro access.',
-      },
-    });
+  router.post('/checkout/session', async (req, res, next) => {
+    try {
+      requireStripeCheckout();
+      const input = checkoutSessionSchema.parse(req.body);
+      const session = await createCheckoutSession(input);
+      const wantsJson = (req.headers.accept || '').includes('application/json');
+      if (wantsJson) {
+        res.json({ ok: true, requestId: req.requestId, ...session });
+        return;
+      }
+      res.redirect(303, session.url);
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.get('/community', html(

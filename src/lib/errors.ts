@@ -20,3 +20,7 @@ export function badRequest(message = 'Bad request') {
 export function forbidden(message = 'Forbidden') {
   return new HttpError(403, 'FORBIDDEN', message);
 }
+
+export function serviceUnavailable(code: string, message: string) {
+  return new HttpError(503, code, message);
+}

@@ -48,7 +48,27 @@ export const config = {
   rateLimitAdminMax: numberFromEnv('RATE_LIMIT_ADMIN_MAX', 120),
 
   rejectPrivateUrlsInProduction: booleanFromEnv('REJECT_PRIVATE_URLS_IN_PRODUCTION', true),
+
+  publicSiteUrl: trimTrailingSlash(
+    process.env.PUBLIC_SITE_URL || derivePublicSiteUrl(process.env.PUBLIC_BASE_URL || 'http://localhost:4100/v1'),
+  ),
+  stripeSecretKey: (process.env.STRIPE_SECRET_KEY || '').trim(),
+  stripeWebhookSecret: (process.env.STRIPE_WEBHOOK_SECRET || '').trim(),
+  stripePriceMonthly: (process.env.STRIPE_PRICE_MONTHLY || '').trim(),
+  stripePriceAnnual: (process.env.STRIPE_PRICE_ANNUAL || '').trim(),
 };
+
+export function isStripeCheckoutConfigured(): boolean {
+  return Boolean(
+    config.stripeSecretKey
+    && (config.stripePriceMonthly || config.stripePriceAnnual)
+    && isValidHttpUrl(config.publicSiteUrl),
+  );
+}
+
+export function isStripeWebhookConfigured(): boolean {
+  return Boolean(config.stripeSecretKey && config.stripeWebhookSecret);
+}
 
 export function validateConfig() {
   const errors: string[] = [];
@@ -109,11 +129,19 @@ export function configSummary() {
     rateLimitMaxBuckets: config.rateLimitMaxBuckets,
     eventFlushIntervalMs: config.eventFlushIntervalMs,
     eventMaxQueue: config.eventMaxQueue,
+    publicSiteUrl: config.publicSiteUrl,
+    stripeCheckoutConfigured: isStripeCheckoutConfigured(),
+    stripeWebhookConfigured: isStripeWebhookConfigured(),
   };
 }
 
 export function trimTrailingSlash(value: string): string {
   return value.trim().replace(/\/+$/, '');
+}
+
+export function derivePublicSiteUrl(publicBaseUrl: string): string {
+  const trimmed = trimTrailingSlash(publicBaseUrl);
+  return trimmed.replace(/\/v1$/i, '') || trimmed;
 }
 
 function isValidHttpUrl(value: string) {

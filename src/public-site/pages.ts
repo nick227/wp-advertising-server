@@ -199,46 +199,79 @@ export function pricingPage(): string {
   </div></section>`;
 }
 
-export function checkoutPage(): string {
+export function checkoutPage(options?: { configured?: boolean; canceled?: boolean }): string {
+  const configured = options?.configured ?? false;
+  const notice = options?.canceled
+    ? '<div class="notice">Checkout was canceled. You can restart below whenever you are ready.</div>'
+    : configured
+      ? '<div class="notice">You will complete payment on Stripe. Pro activates after the signed webhook confirms the subscription.</div>'
+      : '<div class="notice">Pro checkout is not configured on this environment yet. Set Stripe keys and price IDs, or continue with Free local advertising.</div>';
+
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Checkout</p>
     <h1>Stripe-hosted checkout.</h1>
-    <p class="hero-lead">Card entry happens on Stripe. This service only creates the Checkout Session when billing is enabled.</p>
+    <p class="hero-lead">Card entry happens on Stripe. This service only creates the Checkout Session.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
-    <div class="notice">Pro checkout sessions are not live yet. Contact us for early access, or continue with Free local advertising today.</div>
+    ${notice}
     <form method="post" action="/checkout/session" style="margin-top:1.5rem;display:grid;gap:1rem;max-width:28rem">
+      <label>WordPress site URL
+        <input name="siteUrl" type="url" required placeholder="https://yoursite.com" style="display:block;width:100%;margin-top:0.35rem;padding:0.65rem;font:inherit">
+      </label>
+      <label>Email
+        <input name="email" type="email" required placeholder="you@example.com" style="display:block;width:100%;margin-top:0.35rem;padding:0.65rem;font:inherit">
+      </label>
       <label>Plan
         <select name="plan" style="display:block;width:100%;margin-top:0.35rem;padding:0.65rem;font:inherit">
           <option value="monthly">Pro monthly</option>
           <option value="annual">Pro annual</option>
         </select>
       </label>
-      <button class="btn btn-primary" type="submit">Create Checkout Session</button>
+      <button class="btn btn-primary" type="submit"${configured ? '' : ' disabled'}>Continue to Stripe</button>
     </form>
-    <p style="color:var(--ink-muted)">On success you will return to <a href="/checkout/success">/checkout/success</a> with activation instructions.</p>
+    <p style="color:var(--ink-muted)">On success you return to <a href="/checkout/success">/checkout/success</a> with your license key.</p>
   </div></section>`;
 }
 
-export function checkoutSuccessPage(): string {
+export function checkoutSuccessPage(options?: {
+  licenseKey?: string | null;
+  pending?: boolean;
+  email?: string | null;
+}): string {
+  const licenseBlock = options?.licenseKey
+    ? `<p><strong>License key</strong></p><p><code>${escapeHtml(options.licenseKey)}</code></p>`
+    : options?.pending
+      ? '<div class="notice">Payment received. License provisioning is still in progress — refresh this page in a few seconds.</div>'
+      : '<div class="notice">Open this page with a Stripe <code>session_id</code> after Checkout, or check your email once provisioning completes.</div>';
+
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Checkout</p>
     <h1>Payment received.</h1>
-    <p class="hero-lead">When Stripe webhooks are connected, this page will confirm Pro status and show your license key.</p>
+    <p class="hero-lead">Pro is tied to your WordPress site URL. Keep this license key for activation.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
+    ${licenseBlock}
+    ${options?.email ? `<p style="color:var(--ink-muted)">Receipt email: ${escapeHtml(options.email)}</p>` : ''}
     <ol>
-      <li>Install the WP Advertising plugin on your WordPress site.</li>
-      <li>Open WP Advertising → enter your license key → Activate.</li>
-      <li>Enable Community or external embeds to use network features.</li>
+      <li>Install the WP Advertising plugin on the purchased site URL.</li>
+      <li>Set the Community API URL to this service, then enable Community (server grants Pro from the webhook).</li>
+      <li>Store your license key for support and future activation tooling.</li>
     </ol>
     <div class="hero-actions">
       <a class="btn btn-primary" href="/community">Enter Community</a>
       <a class="btn btn-secondary" href="/help/licensing">Licensing help</a>
     </div>
   </div></section>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export function communityPage(): string {
