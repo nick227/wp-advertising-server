@@ -18,7 +18,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "openapi:validate": "node scripts/validate-openapi.mjs",
-    "smoke": "node scripts/smoke-test.mjs"
+    "smoke": "node scripts/smoke-test.mjs",
+    "seed:soft-launch": "tsx scripts/seed-soft-launch.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
