@@ -32,6 +32,11 @@ const mockSite = {
   publicKey: 'pub_test_apikey_12345678901234567890',
   pluginVersion: '8.0.0',
   lastSeenAt: new Date(),
+  networkStatus: 'TRIAL',
+  networkTrialStartedAt: new Date(),
+  networkAccessUntil: new Date(Date.now() + 86400000),
+  category: null,
+  publicIdentityOptIn: false,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -155,6 +160,23 @@ describe('POST /v1/sites/opt-in', () => {
     expect(res.status).toBe(200);
     expect(res.body.optedIn).toBe(true);
     expect(rc.invalidate).toHaveBeenCalledOnce();
+  });
+
+  it('returns 403 when the site has no active Trial or Pro entitlement', async () => {
+    p.communitySite.findUnique.mockResolvedValue({
+      ...mockSite,
+      networkStatus: null,
+      networkAccessUntil: null,
+      networkTrialStartedAt: null,
+    });
+
+    const res = await request(app).post('/v1/sites/opt-in').send({
+      siteId: mockSite.id,
+      apiKey: mockSite.publicKey,
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
   });
 });
 

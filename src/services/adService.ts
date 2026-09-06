@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { publicHttpUrlSchema, domainFromUrl, normalizeAdUrl } from '../lib/urlUtils.js';
 import { forbidden } from '../lib/errors.js';
 import { rotationCache } from './rotationCache.js';
+import { requireNetworkEntitlement } from './entitlementService.js';
 
 export const upsertAdSchema = authSiteSchema.extend({
   title: z.string().trim().min(1).max(160),
@@ -15,6 +16,7 @@ export const upsertAdSchema = authSiteSchema.extend({
 
 export async function upsertSiteAd(input: z.infer<typeof upsertAdSchema>) {
   await authenticateSite(input);
+  await requireNetworkEntitlement(input.siteId);
   const imageUrl = normalizeAdUrl(input.imageUrl);
   const targetUrl = normalizeAdUrl(input.targetUrl);
   await assertDomainAllowed(imageUrl);

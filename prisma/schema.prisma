@@ -26,26 +26,48 @@ enum EventType {
   CLICK
 }
 
-model CommunitySite {
-  id            String     @id @default(cuid())
-  siteUrl       String     @unique @db.VarChar(512)
-  siteDomain    String     @unique @db.VarChar(255)
-  siteName      String?    @db.VarChar(255)
-  status        SiteStatus @default(ACTIVE)
-  optedIn       Boolean    @default(false)
-  publicKey     String     @unique @db.VarChar(96)
-  pluginVersion String?    @db.VarChar(48)
-  lastSeenAt    DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+enum NetworkStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  REVOKED
+}
 
-  ads           CommunityAd[]
-  servedEvents  CommunityEvent[] @relation("SourceSiteEvents")
-  targetEvents  CommunityEvent[] @relation("TargetSiteEvents")
+enum LicenseStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  SUSPENDED
+}
+
+model CommunitySite {
+  id                    String         @id @default(cuid())
+  siteUrl               String         @unique @db.VarChar(512)
+  siteDomain            String         @unique @db.VarChar(255)
+  siteName              String?        @db.VarChar(255)
+  status                SiteStatus     @default(ACTIVE)
+  optedIn               Boolean        @default(false)
+  publicKey             String         @unique @db.VarChar(96)
+  pluginVersion         String?        @db.VarChar(48)
+  lastSeenAt            DateTime?
+  networkStatus         NetworkStatus?
+  networkTrialStartedAt DateTime?
+  networkAccessUntil    DateTime?
+  category              String?        @db.VarChar(64)
+  publicIdentityOptIn   Boolean        @default(false)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  ads            CommunityAd[]
+  servedEvents   CommunityEvent[]      @relation("SourceSiteEvents")
+  targetEvents   CommunityEvent[]      @relation("TargetSiteEvents")
+  activations    LicenseActivation[]
 
   @@index([optedIn, status])
   @@index([status, optedIn])
   @@index([lastSeenAt])
+  @@index([networkStatus, networkAccessUntil])
 }
 
 model CommunityAd {
@@ -112,4 +134,41 @@ model BlockedDomain {
   domain    String   @unique @db.VarChar(255)
   reason    String?  @db.VarChar(255)
   createdAt DateTime @default(now())
+}
+
+model License {
+  id                   String        @id @default(cuid())
+  licenseKey           String        @unique @db.VarChar(96)
+  status               LicenseStatus @default(ACTIVE)
+  maxActivations       Int           @default(1)
+  expiresAt            DateTime?
+  customerEmail        String?       @db.VarChar(255)
+  stripeCustomerId     String?       @db.VarChar(64)
+  stripeSubscriptionId String?       @db.VarChar(64)
+  notes                String?       @db.VarChar(512)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  activations LicenseActivation[]
+
+  @@index([status, expiresAt])
+  @@index([customerEmail])
+  @@index([stripeSubscriptionId])
+}
+
+model LicenseActivation {
+  id              String        @id @default(cuid())
+  licenseId       String
+  license         License       @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  siteId          String
+  site            CommunitySite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  domainSnapshot  String        @db.VarChar(255)
+  pluginVersion   String?       @db.VarChar(48)
+  activatedAt     DateTime      @default(now())
+  lastValidatedAt DateTime      @default(now())
+  deactivatedAt   DateTime?
+
+  @@unique([licenseId, siteId])
+  @@index([siteId])
+  @@index([lastValidatedAt])
 }

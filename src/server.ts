@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { config, configSummary, validateConfig } from './config.js';
 import { eventQueue } from './services/eventQueue.js';
 import { rotationCache } from './services/rotationCache.js';
+import { entitlementSweeper } from './services/entitlementService.js';
 import { prisma } from './lib/prisma.js';
 
 const validation = validateConfig();
@@ -35,6 +36,7 @@ const server = createServer(app);
 let shuttingDown = false;
 
 eventQueue.start();
+entitlementSweeper.start();
 if (config.rotationCacheWarmOnStart) {
   rotationCache.warm().catch((error) => console.error('initial rotation cache warm failed', error));
 }
@@ -57,6 +59,7 @@ async function shutdown(signal: string) {
   try {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     eventQueue.stop();
+    entitlementSweeper.stop();
     await eventQueue.flush().catch((error) => console.error('event flush failed during shutdown', error));
     await prisma.$disconnect().catch((error) => console.error('database disconnect failed during shutdown', error));
     clearTimeout(forceExit);

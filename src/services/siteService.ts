@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { forbidden, notFound } from '../lib/errors.js';
 import { normalizeDomain, normalizeSiteUrl, publicHttpUrlSchema } from '../lib/urlUtils.js';
 import { rotationCache } from './rotationCache.js';
+import { requireNetworkEntitlement } from './entitlementService.js';
 
 export const registerSiteSchema = z.object({
   siteUrl: publicHttpUrlSchema,
@@ -48,6 +49,8 @@ export async function registerSite(input: z.infer<typeof registerSiteSchema>) {
       apiKey: updated.publicKey,
       status: updated.status,
       optedIn: updated.optedIn,
+      networkStatus: updated.networkStatus,
+      networkAccessUntil: updated.networkAccessUntil?.toISOString() ?? null,
       alreadyRegistered: true,
     };
   }
@@ -71,6 +74,8 @@ export async function registerSite(input: z.infer<typeof registerSiteSchema>) {
     apiKey: site.publicKey,
     status: site.status,
     optedIn: site.optedIn,
+    networkStatus: site.networkStatus,
+    networkAccessUntil: site.networkAccessUntil?.toISOString() ?? null,
     alreadyRegistered: false,
   };
 }
@@ -88,18 +93,34 @@ export async function heartbeat(input: z.infer<typeof authSiteSchema>) {
   return prisma.communitySite.update({
     where: { id: input.siteId },
     data: { lastSeenAt: new Date() },
-    select: { id: true, status: true, optedIn: true, lastSeenAt: true },
+    select: {
+      id: true,
+      status: true,
+      optedIn: true,
+      lastSeenAt: true,
+      networkStatus: true,
+      networkAccessUntil: true,
+    },
   });
 }
 
 export async function setOptIn(input: z.infer<typeof optInSchema>) {
   await authenticateSite(input);
+  if (input.optedIn) {
+    await requireNetworkEntitlement(input.siteId);
+  }
   const site = await prisma.communitySite.update({
     where: { id: input.siteId },
     data: { optedIn: input.optedIn, lastSeenAt: new Date() },
-    select: { id: true, status: true, optedIn: true, updatedAt: true },
+    select: {
+      id: true,
+      status: true,
+      optedIn: true,
+      updatedAt: true,
+      networkStatus: true,
+      networkAccessUntil: true,
+    },
   });
   await rotationCache.invalidate();
   return site;
 }
-

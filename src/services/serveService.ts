@@ -32,6 +32,8 @@ export async function serveCommunityAd(input: z.infer<typeof serveQuerySchema>, 
   const sourceSite = snapshot.siteByDomain.get(siteDomain);
 
   if (!sourceSite || !sourceSite.optedIn || sourceSite.status !== 'ACTIVE') return null;
+  if (sourceSite.networkStatus !== 'TRIAL' && sourceSite.networkStatus !== 'ACTIVE') return null;
+  if (sourceSite.networkAccessUntil !== null && sourceSite.networkAccessUntil <= Date.now()) return null;
 
   const ad = rotationCache.nextAd(sourceSite.id, siteDomain);
   if (!ad) return null;

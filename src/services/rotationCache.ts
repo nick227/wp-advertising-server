@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { prisma } from '../lib/prisma.js';
 import { normalizeDomain } from '../lib/urlUtils.js';
+import type { NetworkStatus } from '@prisma/client';
 
 export type RotationAd = {
   adId: string;
@@ -10,9 +11,17 @@ export type RotationAd = {
   imageUrl: string;
   targetUrl: string;
   weight: number;
+  networkAccessUntil: number | null;
 };
 
-type SiteSnapshot = { id: string; siteDomain: string; optedIn: boolean; status: string };
+type SiteSnapshot = {
+  id: string;
+  siteDomain: string;
+  optedIn: boolean;
+  status: string;
+  networkStatus: NetworkStatus | null;
+  networkAccessUntil: number | null;
+};
 type CacheState = {
   ads: RotationAd[];
   siteByDomain: Map<string, SiteSnapshot>;
@@ -71,6 +80,7 @@ export const rotationCache = {
 
   const normalizedSourceDomain = sourceDomain ? normalizeDomain(sourceDomain) : undefined;
   let fallback: RotationAd | null = null;
+  const now = Date.now();
 
   const attempts = state.ads.length;
 
@@ -79,6 +89,10 @@ export const rotationCache = {
     state.cursor = (state.cursor + 1) % state.ads.length;
 
     const ad = state.ads[idx];
+    if (ad.networkAccessUntil !== null && ad.networkAccessUntil <= now) {
+      continue;
+    }
+
     const isSameSite =
       ad.siteId === sourceSiteId ||
       Boolean(normalizedSourceDomain && normalizeDomain(ad.siteDomain) === normalizedSourceDomain);
@@ -130,12 +144,18 @@ async function refreshRotationCache(options: { allowStale?: boolean; force?: boo
 
 async function doRefresh() {
   const started = Date.now();
+  const now = new Date();
   try {
     const [ads, sites] = await Promise.all([
       prisma.communityAd.findMany({
         where: {
           status: 'ACTIVE',
-          site: { optedIn: true, status: 'ACTIVE' },
+          site: {
+            optedIn: true,
+            status: 'ACTIVE',
+            networkStatus: { in: ['TRIAL', 'ACTIVE'] },
+            networkAccessUntil: { gt: now },
+          },
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         select: {
@@ -145,17 +165,25 @@ async function doRefresh() {
           imageUrl: true,
           targetUrl: true,
           weight: true,
-          site: { select: { siteDomain: true } },
+          site: { select: { siteDomain: true, networkAccessUntil: true } },
         },
       }),
       prisma.communitySite.findMany({
-        select: { id: true, siteDomain: true, optedIn: true, status: true },
+        select: {
+          id: true,
+          siteDomain: true,
+          optedIn: true,
+          status: true,
+          networkStatus: true,
+          networkAccessUntil: true,
+        },
       }),
     ]);
 
     const weighted: RotationAd[] = [];
     for (const ad of ads) {
       const copies = Math.max(1, Math.min(ad.weight || 1, 10));
+      const networkAccessUntil = ad.site.networkAccessUntil ? ad.site.networkAccessUntil.getTime() : null;
       for (let i = 0; i < copies; i += 1) {
         weighted.push({
           adId: ad.id,
@@ -165,6 +193,7 @@ async function doRefresh() {
           imageUrl: ad.imageUrl,
           targetUrl: ad.targetUrl,
           weight: ad.weight,
+          networkAccessUntil,
         });
       }
     }
@@ -174,7 +203,14 @@ async function doRefresh() {
     const nextSiteByDomain = new Map<string, SiteSnapshot>();
     for (const site of sites) {
       const siteDomain = normalizeDomain(site.siteDomain);
-      nextSiteByDomain.set(siteDomain, { ...site, siteDomain });
+      nextSiteByDomain.set(siteDomain, {
+        id: site.id,
+        siteDomain,
+        optedIn: site.optedIn,
+        status: site.status,
+        networkStatus: site.networkStatus,
+        networkAccessUntil: site.networkAccessUntil ? site.networkAccessUntil.getTime() : null,
+      });
     }
     const nextCursor = weighted.length === 0 ? 0 : state.cursor % weighted.length;
 

@@ -39,12 +39,20 @@ const rotationAd = {
   imageUrl: 'https://other.com/img.jpg',
   targetUrl: 'https://other.com/landing',
   weight: 1,
+  networkAccessUntil: Date.now() + 86400000,
 };
 
 const activeSiteSnapshot = {
   ads: [rotationAd],
   siteByDomain: new Map([
-    ['example.com', { id: 'site_src', siteDomain: 'example.com', optedIn: true, status: 'ACTIVE' }],
+    ['example.com', {
+      id: 'site_src',
+      siteDomain: 'example.com',
+      optedIn: true,
+      status: 'ACTIVE',
+      networkStatus: 'TRIAL',
+      networkAccessUntil: Date.now() + 86400000,
+    }],
   ]),
   refreshedAt: Date.now(),
   cursor: 0,

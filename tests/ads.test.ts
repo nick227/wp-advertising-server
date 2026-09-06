@@ -27,6 +27,11 @@ const mockSite = {
   publicKey: 'pub_adtest_apikey_1234567890abcdef',
   pluginVersion: '8.0.0',
   lastSeenAt: new Date(),
+  networkStatus: 'TRIAL',
+  networkTrialStartedAt: new Date(),
+  networkAccessUntil: new Date(Date.now() + 86400000),
+  category: null,
+  publicIdentityOptIn: false,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
