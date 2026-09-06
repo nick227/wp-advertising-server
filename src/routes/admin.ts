@@ -8,17 +8,20 @@ import {
   adStatusSchema,
   extendTrial,
   forceOptOut,
-  getAdminOverview,
   grantPro,
-  listAdminAds,
-  listAdminLicenses,
-  listAdminSites,
   resetActivations,
   revokeSite,
   setAdStatus,
   siteActionSchema,
   suspendSite,
 } from '../services/adminService.js';
+import {
+  getAdminOverview,
+  getAdminSite,
+  listAdminAds,
+  listAdminLicenses,
+  listAdminSites,
+} from '../services/adminQueryService.js';
 
 export const adminRouter = Router();
 
@@ -65,8 +68,21 @@ adminRouter.post('/admin/events/flush', async (req, res, next) => {
 
 adminRouter.get('/admin/sites', async (req, res, next) => {
   try {
-    const sites = await listAdminSites();
+    const sites = await listAdminSites({
+      q: typeof req.query.q === 'string' ? req.query.q : undefined,
+      networkStatus: typeof req.query.networkStatus === 'string' ? req.query.networkStatus : undefined,
+      optedIn: typeof req.query.optedIn === 'string' ? req.query.optedIn : undefined,
+    });
     res.json({ ok: true, requestId: req.requestId, sites });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/admin/sites/:siteId', async (req, res, next) => {
+  try {
+    const site = await getAdminSite(req.params.siteId);
+    res.json({ ok: true, requestId: req.requestId, site });
   } catch (error) {
     next(error);
   }
@@ -74,7 +90,10 @@ adminRouter.get('/admin/sites', async (req, res, next) => {
 
 adminRouter.get('/admin/ads', async (req, res, next) => {
   try {
-    const ads = await listAdminAds();
+    const ads = await listAdminAds({
+      q: typeof req.query.q === 'string' ? req.query.q : undefined,
+      status: typeof req.query.status === 'string' ? req.query.status : undefined,
+    });
     res.json({ ok: true, requestId: req.requestId, ads });
   } catch (error) {
     next(error);
@@ -83,7 +102,9 @@ adminRouter.get('/admin/ads', async (req, res, next) => {
 
 adminRouter.get('/admin/licenses', async (req, res, next) => {
   try {
-    const licenses = await listAdminLicenses();
+    const licenses = await listAdminLicenses({
+      q: typeof req.query.q === 'string' ? req.query.q : undefined,
+    });
     res.json({ ok: true, requestId: req.requestId, licenses });
   } catch (error) {
     next(error);

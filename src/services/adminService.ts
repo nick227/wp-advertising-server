@@ -2,8 +2,6 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { rotationCache } from './rotationCache.js';
-import { eventQueue } from './eventQueue.js';
-import { rateLimitStatus } from '../middleware/rateLimit.js';
 import { TRIAL_DAYS } from './entitlementService.js';
 
 export const siteActionSchema = z.object({
@@ -28,80 +26,6 @@ const siteSelect = {
   networkAccessUntil: true,
   updatedAt: true,
 } as const;
-
-export async function listAdminSites() {
-  return prisma.communitySite.findMany({
-    orderBy: { updatedAt: 'desc' },
-    take: 200,
-    select: siteSelect,
-  });
-}
-
-export async function listAdminAds() {
-  return prisma.communityAd.findMany({
-    orderBy: { updatedAt: 'desc' },
-    take: 200,
-    select: {
-      id: true,
-      siteId: true,
-      title: true,
-      imageUrl: true,
-      targetUrl: true,
-      status: true,
-      weight: true,
-      servedCount: true,
-      clickCount: true,
-      updatedAt: true,
-      site: { select: { siteDomain: true, siteUrl: true } },
-    },
-  });
-}
-
-export async function listAdminLicenses() {
-  return prisma.license.findMany({
-    orderBy: { updatedAt: 'desc' },
-    take: 200,
-    include: {
-      activations: {
-        where: { deactivatedAt: null },
-        select: {
-          id: true,
-          siteId: true,
-          domainSnapshot: true,
-          activatedAt: true,
-          lastValidatedAt: true,
-        },
-      },
-    },
-  });
-}
-
-export async function getAdminOverview() {
-  const [siteCount, optedInCount, adCount, licenseCount, byNetwork, byAdStatus] = await Promise.all([
-    prisma.communitySite.count(),
-    prisma.communitySite.count({ where: { optedIn: true } }),
-    prisma.communityAd.count(),
-    prisma.license.count({ where: { status: 'ACTIVE' } }),
-    prisma.communitySite.groupBy({ by: ['networkStatus'], _count: { _all: true } }),
-    prisma.communityAd.groupBy({ by: ['status'], _count: { _all: true } }),
-  ]);
-
-  return {
-    counts: {
-      sites: siteCount,
-      optedIn: optedInCount,
-      ads: adCount,
-      activeLicenses: licenseCount,
-    },
-    networkStatus: Object.fromEntries(
-      byNetwork.map((row) => [row.networkStatus ?? 'NONE', row._count._all]),
-    ),
-    adStatus: Object.fromEntries(byAdStatus.map((row) => [row.status, row._count._all])),
-    rotation: rotationCache.status(),
-    events: eventQueue.status(),
-    rateLimits: rateLimitStatus(),
-  };
-}
 
 export async function extendTrial(siteId: string, days = TRIAL_DAYS) {
   const site = await requireSite(siteId);

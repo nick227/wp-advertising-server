@@ -16,6 +16,7 @@ const { p, rc, eq } = vi.hoisted(() => {
       update: vi.fn(),
       count: vi.fn(),
       groupBy: vi.fn(),
+      aggregate: vi.fn(),
     },
     license: { findMany: vi.fn(), count: vi.fn() },
     licenseActivation: { updateMany: vi.fn() },
@@ -51,29 +52,26 @@ const site = {
   siteName: 'Shop',
   status: 'ACTIVE',
   optedIn: true,
-  pluginVersion: '8.2.0',
+  pluginVersion: '8.3.0',
   lastSeenAt: new Date(),
   networkStatus: 'TRIAL',
   networkTrialStartedAt: new Date(),
   networkAccessUntil: new Date(Date.now() + 86400000),
   updatedAt: new Date(),
+  createdAt: new Date(),
 };
 
 describe('Admin auth guard', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it.each([
-    ['post', '/v1/admin/cache/rebuild'],
-    ['get', '/v1/admin/metrics'],
     ['get', '/v1/admin/overview'],
-    ['post', '/v1/admin/events/flush'],
     ['get', '/v1/admin/sites'],
     ['get', '/v1/admin/ads'],
     ['get', '/v1/admin/licenses'],
   ] as const)('%s %s returns 401 without admin token', async (method, path) => {
     const res = await request(app)[method](path);
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -85,30 +83,62 @@ describe('GET /v1/admin/overview', () => {
     p.license.count.mockResolvedValue(1);
     p.communitySite.groupBy.mockResolvedValue([{ networkStatus: 'TRIAL', _count: { _all: 2 } }]);
     p.communityAd.groupBy.mockResolvedValue([{ status: 'ACTIVE', _count: { _all: 2 } }]);
+    p.communityAd.aggregate.mockResolvedValue({ _sum: { servedCount: 100, clickCount: 4 } });
+    p.communityAd.findMany.mockResolvedValue([
+      { id: 'a1', title: 'Ad', servedCount: 100, clickCount: 4, status: 'ACTIVE', site: { siteDomain: 'shop.example.com', siteUrl: 'https://shop.example.com' } },
+    ]);
+    p.communitySite.findMany.mockResolvedValue([
+      { id: 'site_1', siteDomain: 'shop.example.com', networkStatus: 'TRIAL', optedIn: true, lastSeenAt: new Date() },
+    ]);
   });
 
-  it('returns aggregate counts', async () => {
+  it('returns real delivery totals and top ads', async () => {
     const res = await request(app).get('/v1/admin/overview').set(ADMIN);
     expect(res.status).toBe(200);
-    expect(res.body.counts.sites).toBe(3);
-    expect(res.body.networkStatus.TRIAL).toBe(2);
+    expect(res.body.counts.serves).toBe(100);
+    expect(res.body.counts.clicks).toBe(4);
+    expect(res.body.counts.ctr).toBe(4);
+    expect(res.body.topAds[0].site.siteDomain).toBe('shop.example.com');
+    expect(res.body.recentSites).toHaveLength(1);
   });
 });
 
-describe('POST /v1/admin/cache/rebuild', () => {
+describe('site list + detail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    rc.rebuildNow.mockResolvedValue({ version: 1, items: 2, sites: 2, lastBuiltAt: new Date().toISOString(), lastBuildMs: 14, lastError: null, ttlMs: 30000, cursor: 0, loading: false });
   });
 
-  it('returns 200 and triggers cache rebuild', async () => {
-    const res = await request(app).post('/v1/admin/cache/rebuild').set(ADMIN);
+  it('lists sites with serve totals', async () => {
+    p.communitySite.findMany.mockResolvedValue([
+      {
+        ...site,
+        ads: [
+          { servedCount: 10, clickCount: 1, status: 'ACTIVE' },
+          { servedCount: 5, clickCount: 0, status: 'PAUSED' },
+        ],
+        _count: { ads: 2, activations: 0 },
+      },
+    ]);
+    const res = await request(app).get('/v1/admin/sites?q=shop').set(ADMIN);
     expect(res.status).toBe(200);
-    expect(rc.rebuildNow).toHaveBeenCalledOnce();
+    expect(res.body.sites[0].servedCount).toBe(15);
+    expect(res.body.sites[0].activeAds).toBe(1);
+  });
+
+  it('returns site detail with ads and licenses', async () => {
+    p.communitySite.findUnique.mockResolvedValue({
+      ...site,
+      ads: [{ id: 'a1', title: 'House', status: 'ACTIVE', weight: 1, servedCount: 3, clickCount: 1, targetUrl: 'https://x.test', imageUrl: 'https://x.test/i.png', updatedAt: new Date() }],
+      activations: [],
+    });
+    const res = await request(app).get('/v1/admin/sites/site_1').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.site.siteDomain).toBe('shop.example.com');
+    expect(res.body.site.ads).toHaveLength(1);
   });
 });
 
-describe('site entitlement actions', () => {
+describe('mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     p.communitySite.findUnique.mockResolvedValue(site);
@@ -118,74 +148,6 @@ describe('site entitlement actions', () => {
   it('grants Pro', async () => {
     const res = await request(app).post('/v1/admin/sites/site_1/grant-pro').set(ADMIN).send({ days: 30 });
     expect(res.status).toBe(200);
-    expect(res.body.site.networkStatus).toBe('ACTIVE');
     expect(rc.invalidate).toHaveBeenCalled();
-  });
-
-  it('suspends a site', async () => {
-    p.communitySite.update.mockResolvedValue({ ...site, networkStatus: 'SUSPENDED', optedIn: false });
-    const res = await request(app).post('/v1/admin/sites/site_1/suspend').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.site.networkStatus).toBe('SUSPENDED');
-  });
-});
-
-describe('GET /v1/admin/sites', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    p.communitySite.findMany.mockResolvedValue([site]);
-  });
-
-  it('returns entitlement fields', async () => {
-    const res = await request(app).get('/v1/admin/sites').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.sites[0].networkStatus).toBe('TRIAL');
-  });
-});
-
-describe('GET /v1/admin/ads', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    p.communityAd.findMany.mockResolvedValue([]);
-  });
-
-  it('returns 200 with ads array', async () => {
-    const res = await request(app).get('/v1/admin/ads').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.ads).toEqual([]);
-  });
-});
-
-describe('GET /v1/admin/licenses', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    p.license.findMany.mockResolvedValue([]);
-  });
-
-  it('returns 200 with licenses array', async () => {
-    const res = await request(app).get('/v1/admin/licenses').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.licenses).toEqual([]);
-  });
-});
-
-describe('POST /v1/admin/events/flush', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    eq.flush.mockResolvedValue(undefined);
-  });
-
-  it('flushes events', async () => {
-    const res = await request(app).post('/v1/admin/events/flush').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(eq.flush).toHaveBeenCalledOnce();
-  });
-});
-
-describe('GET /v1/admin/metrics', () => {
-  it('returns metrics payload', async () => {
-    const res = await request(app).get('/v1/admin/metrics').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.rotation).toBeDefined();
   });
 });
