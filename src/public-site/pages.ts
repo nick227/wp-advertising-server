@@ -7,8 +7,8 @@ export function homePage(): string {
         <h1>The advertising network built for WordPress.</h1>
         <p class="hero-lead">Local same-domain ads are free. External distribution and the WP Advertising Community run on Trial or Pro — without putting Railway URLs in visitor browsers.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="/pricing">Start 30-Day Trial</a>
-          <a class="btn btn-secondary" href="/plugin">Explore the Plugin</a>
+          <a class="btn btn-primary" href="/plugin">Download the Plugin</a>
+          <a class="btn btn-secondary" href="/checkout">Upgrade to Pro</a>
         </div>
       </div>
       <figure class="network-visual" aria-label="Network exchange diagram">
@@ -109,12 +109,19 @@ export function homePage(): string {
   </section>`;
 }
 
-export function pluginPage(): string {
+export function pluginPage(options?: { downloadUrl?: string }): string {
+  const download = options?.downloadUrl
+    ? `<a class="btn btn-primary" href="/plugin/download">Download plugin ZIP</a>`
+    : `<a class="btn btn-primary" href="/help/getting-started">Install guide</a>`;
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Plugin</p>
     <h1>WordPress advertising that stays local until you expand.</h1>
     <p class="hero-lead">Free covers same-domain house ads, embeds, themes, and basic tracking. Trial and Pro unlock external distribution and Community network participation.</p>
+    <div class="hero-actions">
+      ${download}
+      <a class="btn btn-secondary" href="/checkout">Upgrade to Pro</a>
+    </div>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     <h2>Free — local only</h2>
@@ -128,14 +135,13 @@ export function pluginPage(): string {
     <ul>
       <li>External embeds beyond your domain</li>
       <li>Community opt-in, creative sync, and partner inventory</li>
-      <li>Network reporting with anonymized publisher views</li>
       <li>Higher limits and advanced WooCommerce automation</li>
     </ul>
     <h2>Installation</h2>
     <ol>
-      <li>Install WP Advertising on WordPress 6.2+ (PHP 7.4+).</li>
-      <li>Create a house ad and copy the embed or shortcode.</li>
-      <li>When ready for Community, activate Trial from Pricing and opt in inside the plugin.</li>
+      <li>Download the plugin ZIP${options?.downloadUrl ? '' : ' (or install from your release channel)'} and upload it in WordPress → Plugins → Add New.</li>
+      <li>Create a house ad and copy the embed or shortcode (Free works with a blank Community API URL).</li>
+      <li>To join the network: paste the Community API URL, enable Community (starts Trial), or buy Pro and paste your license key.</li>
     </ol>
     <h2>FAQ</h2>
     <p><strong>Does Free phone home?</strong> No. Blank community API URL means local-only operation.</p>
@@ -153,7 +159,7 @@ export function pricingPage(): string {
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Pricing</p>
     <h1>Free locally. Trial and Pro for the network.</h1>
-    <p class="hero-lead">One commercial plan after the 30-day trial. Stripe-hosted checkout arrives with billing launch; Trial activation ships with entitlement.</p>
+    <p class="hero-lead">One commercial plan after the 30-day trial. Buy Pro via Stripe-hosted Checkout, then activate the license key in WordPress.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap">
     <div class="price-grid">
@@ -166,7 +172,7 @@ export function pricingPage(): string {
           <li>No account required</li>
           <li>No community server usage</li>
         </ul>
-        <a class="btn btn-secondary" href="/plugin">Explore Free</a>
+        <a class="btn btn-secondary" href="/plugin">Download Free</a>
       </article>
       <article class="price-card featured">
         <h3>Trial — 30 Days</h3>
@@ -240,7 +246,8 @@ export function checkoutSuccessPage(options?: {
   email?: string | null;
 }): string {
   const licenseBlock = options?.licenseKey
-    ? `<p><strong>License key</strong></p><p><code>${escapeHtml(options.licenseKey)}</code></p>`
+    ? `<p><strong>License key</strong></p><p><code>${escapeHtml(options.licenseKey)}</code></p>
+       <p class="muted">Copy this into WP Advertising → Network entitlement → License key → Activate Pro.</p>`
     : options?.pending
       ? '<div class="notice">Payment received. License provisioning is still in progress — refresh this page in a few seconds.</div>'
       : '<div class="notice">Open this page with a Stripe <code>session_id</code> after Checkout, or check your email once provisioning completes.</div>';
@@ -249,18 +256,19 @@ export function checkoutSuccessPage(options?: {
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Checkout</p>
     <h1>Payment received.</h1>
-    <p class="hero-lead">Pro is tied to your WordPress site URL. Keep this license key for activation.</p>
+    <p class="hero-lead">Activate Pro on the same WordPress site URL you entered at checkout.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     ${licenseBlock}
     ${options?.email ? `<p style="color:var(--ink-muted)">Receipt email: ${escapeHtml(options.email)}</p>` : ''}
     <ol>
-      <li>Install the WP Advertising plugin on the purchased site URL.</li>
-      <li>Set the Community API URL to this service, then enable Community (server grants Pro from the webhook).</li>
-      <li>Store your license key for support and future activation tooling.</li>
+      <li>Install WP Advertising (<a href="/plugin">download</a>) on that WordPress site if it is not installed yet.</li>
+      <li>Set Community API URL to this service’s <code>/v1</code> base.</li>
+      <li>Paste the license key under Network entitlement and click <strong>Activate Pro</strong>.</li>
+      <li>Enable Community when you are ready to join the network.</li>
     </ol>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="/community">Enter Community</a>
+      <a class="btn btn-primary" href="/plugin">Get the plugin</a>
       <a class="btn btn-secondary" href="/help/licensing">Licensing help</a>
     </div>
   </div></section>`;

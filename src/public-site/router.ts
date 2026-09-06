@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { Router, type RequestHandler } from 'express';
-import { isStripeCheckoutConfigured } from '../config.js';
+import { isStripeCheckoutConfigured, config } from '../config.js';
 import { lookupLicenseForCheckoutSession } from '../services/billingService.js';
 import { checkoutSessionSchema, createCheckoutSession } from '../services/checkoutService.js';
 import { requireStripeCheckout } from '../services/stripeClient.js';
@@ -60,7 +60,7 @@ const helpBodies: Record<string, { title: string; body: string }> = {
   },
   licensing: {
     title: 'Licensing',
-    body: `<p>The 30-day Trial starts when external or community advertising is first activated. When access expires, the plugin stops community calls and the server removes the site from rotation.</p>`,
+    body: `<p>The 30-day Trial starts when external or community advertising is first activated. Buy Pro via Checkout, then paste the license key in WP Advertising → Network entitlement → Activate Pro.</p>`,
   },
   billing: {
     title: 'Billing',
@@ -91,8 +91,16 @@ export function createPublicSiteRouter() {
 
   router.get('/plugin', html(
     { title: 'Plugin — WP Advertising', description: 'Free same-domain advertising with optional Trial/Pro network distribution.', path: '/plugin' },
-    pluginPage(),
+    pluginPage({ downloadUrl: config.pluginDownloadUrl || undefined }),
   ));
+
+  router.get('/plugin/download', (_req, res) => {
+    if (!config.pluginDownloadUrl) {
+      res.redirect(302, '/plugin');
+      return;
+    }
+    res.redirect(302, config.pluginDownloadUrl);
+  });
 
   router.get('/pricing', html(
     { title: 'Pricing — WP Advertising', description: 'Free local advertising, 30-day Trial, and Pro for community distribution.', path: '/pricing' },

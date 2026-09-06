@@ -8,6 +8,14 @@ const { p, rc } = vi.hoisted(() => {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    license: {
+      findUnique: vi.fn(),
+    },
+    licenseActivation: {
+      findUnique: vi.fn(),
+      count: vi.fn(),
+      upsert: vi.fn(),
+    },
   };
   const rc = { invalidate: vi.fn().mockResolvedValue(undefined) };
   return { p, rc };
@@ -125,5 +133,43 @@ describe('POST /v1/entitlements/validate', () => {
     expect(res.status).toBe(200);
     expect(res.body.eligible).toBe(true);
     expect(res.body.networkAccessUntil).toBe(until.toISOString());
+  });
+});
+
+describe('POST /v1/entitlements/activate-license', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('activates Pro from a license key', async () => {
+    const until = new Date(Date.now() + 30 * 86400000);
+    p.communitySite.findUnique.mockResolvedValue(baseSite);
+    p.license.findUnique.mockResolvedValue({
+      id: 'lic_1',
+      licenseKey: 'lic_test_key_abcdefghijklmnop',
+      status: 'ACTIVE',
+      expiresAt: until,
+      maxActivations: 1,
+    });
+    p.licenseActivation.findUnique.mockResolvedValue(null);
+    p.licenseActivation.count.mockResolvedValue(0);
+    p.licenseActivation.upsert.mockResolvedValue({});
+    p.communitySite.update.mockResolvedValue({
+      ...baseSite,
+      networkStatus: 'ACTIVE',
+      networkAccessUntil: until,
+    });
+
+    const res = await request(app).post('/v1/entitlements/activate-license').send({
+      siteId: baseSite.id,
+      apiKey: baseSite.publicKey,
+      licenseKey: 'lic_test_key_abcdefghijklmnop',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.eligible).toBe(true);
+    expect(res.body.networkStatus).toBe('ACTIVE');
+    expect(res.body.licenseKey).toBe('lic_test_key_abcdefghijklmnop');
+    expect(rc.invalidate).toHaveBeenCalled();
   });
 });

@@ -32,7 +32,7 @@ export const PRO_RULES = {
 
 export type EntitlementRules = typeof FREE_RULES | typeof PRO_RULES;
 
-async function authenticateForEntitlement(input: z.infer<typeof entitlementAuthSchema>) {
+export async function authenticateForEntitlement(input: z.infer<typeof entitlementAuthSchema>) {
   const site = await prisma.communitySite.findUnique({ where: { id: input.siteId } });
   if (!site) throw notFound('Community site not found');
   if (site.publicKey !== input.apiKey) throw forbidden('Invalid site credentials');
