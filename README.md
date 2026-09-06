@@ -13,6 +13,7 @@ Backend microservice for the [WP Advertising](https://github.com) WordPress plug
 - **Single-replica only.** The rate limiter and rotation cache are in-process. Do not run multiple replicas without replacing them with a shared store (Redis).
 - **Auth model:** Sites authenticate with an `apiKey` returned at registration. Admin endpoints require a `Bearer` token in the `Authorization` header.
 - **No ghost tracking URLs.** Serve responses never include `impressionUrl` / `clickUrl` pointing at this service. Community clicks use the advertiser `targetUrl`.
+- **Public product site** is served from the same process (`/`, `/plugin`, `/pricing`, …) with static assets in `public-site/assets`. API remains under `/v1`.
 
 ---
 

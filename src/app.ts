@@ -10,16 +10,35 @@ import { communityRouter } from './routes/community.js';
 import { adminRouter } from './routes/admin.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { createPublicSiteRouter } from './public-site/router.js';
 
 export function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(helmet({ crossOriginResourcePolicy: false }));
+  app.use(helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:'],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", 'https://fonts.googleapis.com', "'unsafe-inline'"],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+  }));
   app.use(cors({ origin: config.corsOrigins.includes('*') ? true : config.corsOrigins }));
   app.use(express.json({ limit: '64kb' }));
+  app.use(express.urlencoded({ extended: false, limit: '32kb' }));
   app.use(requestIdMiddleware);
+
+  app.use(createPublicSiteRouter());
 
   const v1 = express.Router();
   v1.use(healthRouter);
