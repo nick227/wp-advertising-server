@@ -1,0 +1,201 @@
+import { z } from 'zod';
+import { prisma } from '../lib/prisma.js';
+import { badRequest, notFound } from '../lib/errors.js';
+import { rotationCache } from './rotationCache.js';
+import { eventQueue } from './eventQueue.js';
+import { rateLimitStatus } from '../middleware/rateLimit.js';
+import { TRIAL_DAYS } from './entitlementService.js';
+
+export const siteActionSchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).optional(),
+});
+
+export const adStatusSchema = z.object({
+  status: z.enum(['ACTIVE', 'PAUSED', 'BLOCKED', 'PENDING', 'REJECTED']),
+});
+
+const siteSelect = {
+  id: true,
+  siteUrl: true,
+  siteDomain: true,
+  siteName: true,
+  status: true,
+  optedIn: true,
+  pluginVersion: true,
+  lastSeenAt: true,
+  networkStatus: true,
+  networkTrialStartedAt: true,
+  networkAccessUntil: true,
+  updatedAt: true,
+} as const;
+
+export async function listAdminSites() {
+  return prisma.communitySite.findMany({
+    orderBy: { updatedAt: 'desc' },
+    take: 200,
+    select: siteSelect,
+  });
+}
+
+export async function listAdminAds() {
+  return prisma.communityAd.findMany({
+    orderBy: { updatedAt: 'desc' },
+    take: 200,
+    select: {
+      id: true,
+      siteId: true,
+      title: true,
+      imageUrl: true,
+      targetUrl: true,
+      status: true,
+      weight: true,
+      servedCount: true,
+      clickCount: true,
+      updatedAt: true,
+      site: { select: { siteDomain: true, siteUrl: true } },
+    },
+  });
+}
+
+export async function listAdminLicenses() {
+  return prisma.license.findMany({
+    orderBy: { updatedAt: 'desc' },
+    take: 200,
+    include: {
+      activations: {
+        where: { deactivatedAt: null },
+        select: {
+          id: true,
+          siteId: true,
+          domainSnapshot: true,
+          activatedAt: true,
+          lastValidatedAt: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getAdminOverview() {
+  const [siteCount, optedInCount, adCount, licenseCount, byNetwork, byAdStatus] = await Promise.all([
+    prisma.communitySite.count(),
+    prisma.communitySite.count({ where: { optedIn: true } }),
+    prisma.communityAd.count(),
+    prisma.license.count({ where: { status: 'ACTIVE' } }),
+    prisma.communitySite.groupBy({ by: ['networkStatus'], _count: { _all: true } }),
+    prisma.communityAd.groupBy({ by: ['status'], _count: { _all: true } }),
+  ]);
+
+  return {
+    counts: {
+      sites: siteCount,
+      optedIn: optedInCount,
+      ads: adCount,
+      activeLicenses: licenseCount,
+    },
+    networkStatus: Object.fromEntries(
+      byNetwork.map((row) => [row.networkStatus ?? 'NONE', row._count._all]),
+    ),
+    adStatus: Object.fromEntries(byAdStatus.map((row) => [row.status, row._count._all])),
+    rotation: rotationCache.status(),
+    events: eventQueue.status(),
+    rateLimits: rateLimitStatus(),
+  };
+}
+
+export async function extendTrial(siteId: string, days = TRIAL_DAYS) {
+  const site = await requireSite(siteId);
+  const now = new Date();
+  const base = site.networkAccessUntil && site.networkAccessUntil > now
+    ? site.networkAccessUntil
+    : now;
+  const accessUntil = new Date(base.getTime() + days * 86400000);
+  const updated = await prisma.communitySite.update({
+    where: { id: siteId },
+    data: {
+      networkStatus: site.networkStatus === 'ACTIVE' ? 'ACTIVE' : 'TRIAL',
+      networkTrialStartedAt: site.networkTrialStartedAt ?? now,
+      networkAccessUntil: accessUntil,
+    },
+    select: siteSelect,
+  });
+  await rotationCache.invalidate();
+  return updated;
+}
+
+export async function grantPro(siteId: string, days: number) {
+  if (!days) throw badRequest('days is required to grant Pro');
+  const site = await requireSite(siteId);
+  const now = new Date();
+  const accessUntil = new Date(now.getTime() + days * 86400000);
+  const updated = await prisma.communitySite.update({
+    where: { id: siteId },
+    data: {
+      networkStatus: 'ACTIVE',
+      networkAccessUntil: accessUntil,
+      networkTrialStartedAt: site.networkTrialStartedAt ?? now,
+    },
+    select: siteSelect,
+  });
+  await rotationCache.invalidate();
+  return updated;
+}
+
+export async function suspendSite(siteId: string) {
+  await requireSite(siteId);
+  const updated = await prisma.communitySite.update({
+    where: { id: siteId },
+    data: { networkStatus: 'SUSPENDED', optedIn: false },
+    select: siteSelect,
+  });
+  await rotationCache.invalidate();
+  return updated;
+}
+
+export async function revokeSite(siteId: string) {
+  await requireSite(siteId);
+  const updated = await prisma.communitySite.update({
+    where: { id: siteId },
+    data: { networkStatus: 'REVOKED', optedIn: false, networkAccessUntil: new Date() },
+    select: siteSelect,
+  });
+  await rotationCache.invalidate();
+  return updated;
+}
+
+export async function forceOptOut(siteId: string) {
+  await requireSite(siteId);
+  const updated = await prisma.communitySite.update({
+    where: { id: siteId },
+    data: { optedIn: false },
+    select: siteSelect,
+  });
+  await rotationCache.invalidate();
+  return updated;
+}
+
+export async function resetActivations(siteId: string) {
+  await requireSite(siteId);
+  const result = await prisma.licenseActivation.updateMany({
+    where: { siteId, deactivatedAt: null },
+    data: { deactivatedAt: new Date() },
+  });
+  return { siteId, deactivated: result.count };
+}
+
+export async function setAdStatus(adId: string, status: z.infer<typeof adStatusSchema>['status']) {
+  const ad = await prisma.communityAd.findUnique({ where: { id: adId } });
+  if (!ad) throw notFound('Ad not found');
+  const updated = await prisma.communityAd.update({
+    where: { id: adId },
+    data: { status },
+  });
+  await rotationCache.invalidate();
+  return updated;
+}
+
+async function requireSite(siteId: string) {
+  const site = await prisma.communitySite.findUnique({ where: { id: siteId } });
+  if (!site) throw notFound('Community site not found');
+  return site;
+}

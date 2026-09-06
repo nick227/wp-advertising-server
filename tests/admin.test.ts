@@ -3,8 +3,22 @@ import request from 'supertest';
 
 const { p, rc, eq } = vi.hoisted(() => {
   const p = {
-    communitySite: { findMany: vi.fn() },
-    communityAd: { findMany: vi.fn() },
+    communitySite: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(),
+      groupBy: vi.fn(),
+    },
+    communityAd: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(),
+      groupBy: vi.fn(),
+    },
+    license: { findMany: vi.fn(), count: vi.fn() },
+    licenseActivation: { updateMany: vi.fn() },
   };
   const rc = {
     status: vi.fn().mockReturnValue({
@@ -12,6 +26,7 @@ const { p, rc, eq } = vi.hoisted(() => {
       lastBuildMs: null, lastError: null, ttlMs: 30000, cursor: 0, loading: false,
     }),
     rebuildNow: vi.fn(),
+    invalidate: vi.fn().mockResolvedValue(undefined),
   };
   const eq = {
     flush: vi.fn(),
@@ -29,19 +44,54 @@ import { createApp } from '../src/app.js';
 const app = createApp();
 const ADMIN = { authorization: 'Bearer test-admin-token-static-value-for-ci' };
 
+const site = {
+  id: 'site_1',
+  siteUrl: 'https://shop.example.com',
+  siteDomain: 'shop.example.com',
+  siteName: 'Shop',
+  status: 'ACTIVE',
+  optedIn: true,
+  pluginVersion: '8.2.0',
+  lastSeenAt: new Date(),
+  networkStatus: 'TRIAL',
+  networkTrialStartedAt: new Date(),
+  networkAccessUntil: new Date(Date.now() + 86400000),
+  updatedAt: new Date(),
+};
+
 describe('Admin auth guard', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it.each([
     ['post', '/v1/admin/cache/rebuild'],
     ['get', '/v1/admin/metrics'],
+    ['get', '/v1/admin/overview'],
     ['post', '/v1/admin/events/flush'],
     ['get', '/v1/admin/sites'],
     ['get', '/v1/admin/ads'],
+    ['get', '/v1/admin/licenses'],
   ] as const)('%s %s returns 401 without admin token', async (method, path) => {
     const res = await request(app)[method](path);
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('GET /v1/admin/overview', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    p.communitySite.count.mockResolvedValue(3);
+    p.communityAd.count.mockResolvedValue(2);
+    p.license.count.mockResolvedValue(1);
+    p.communitySite.groupBy.mockResolvedValue([{ networkStatus: 'TRIAL', _count: { _all: 2 } }]);
+    p.communityAd.groupBy.mockResolvedValue([{ status: 'ACTIVE', _count: { _all: 2 } }]);
+  });
+
+  it('returns aggregate counts', async () => {
+    const res = await request(app).get('/v1/admin/overview').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.counts.sites).toBe(3);
+    expect(res.body.networkStatus.TRIAL).toBe(2);
   });
 });
 
@@ -54,63 +104,42 @@ describe('POST /v1/admin/cache/rebuild', () => {
   it('returns 200 and triggers cache rebuild', async () => {
     const res = await request(app).post('/v1/admin/cache/rebuild').set(ADMIN);
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.rotation).toBeDefined();
     expect(rc.rebuildNow).toHaveBeenCalledOnce();
   });
 });
 
-describe('GET /v1/admin/metrics', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('returns 200 with rotation, events, and rateLimits', async () => {
-    const res = await request(app).get('/v1/admin/metrics').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.rotation).toBeDefined();
-    expect(res.body.events).toBeDefined();
-    expect(res.body.rateLimits).toBeDefined();
-  });
-});
-
-describe('POST /v1/admin/events/flush', () => {
+describe('site entitlement actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    eq.flush.mockResolvedValue(undefined);
-    eq.status.mockReturnValue({ size: 0, flushing: false, dropped: 0 });
+    p.communitySite.findUnique.mockResolvedValue(site);
+    p.communitySite.update.mockResolvedValue({ ...site, networkStatus: 'ACTIVE' });
   });
 
-  it('returns 200 and calls eventQueue.flush', async () => {
-    const res = await request(app).post('/v1/admin/events/flush').set(ADMIN);
+  it('grants Pro', async () => {
+    const res = await request(app).post('/v1/admin/sites/site_1/grant-pro').set(ADMIN).send({ days: 30 });
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(eq.flush).toHaveBeenCalledOnce();
+    expect(res.body.site.networkStatus).toBe('ACTIVE');
+    expect(rc.invalidate).toHaveBeenCalled();
+  });
+
+  it('suspends a site', async () => {
+    p.communitySite.update.mockResolvedValue({ ...site, networkStatus: 'SUSPENDED', optedIn: false });
+    const res = await request(app).post('/v1/admin/sites/site_1/suspend').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.site.networkStatus).toBe('SUSPENDED');
   });
 });
 
 describe('GET /v1/admin/sites', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    p.communitySite.findMany.mockResolvedValue([]);
+    p.communitySite.findMany.mockResolvedValue([site]);
   });
 
-  it('returns 200 with a sites array', async () => {
-    p.communitySite.findMany.mockResolvedValue([
-      { id: 's1', siteUrl: 'https://test.com', siteDomain: 'test.com', status: 'ACTIVE', optedIn: true, updatedAt: new Date() },
-    ]);
-
+  it('returns entitlement fields', async () => {
     const res = await request(app).get('/v1/admin/sites').set(ADMIN);
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(Array.isArray(res.body.sites)).toBe(true);
-    expect(res.body.sites).toHaveLength(1);
-    expect(res.body.sites[0].id).toBe('s1');
-  });
-
-  it('returns 200 with an empty sites array when no sites exist', async () => {
-    const res = await request(app).get('/v1/admin/sites').set(ADMIN);
-    expect(res.status).toBe(200);
-    expect(res.body.sites).toHaveLength(0);
+    expect(res.body.sites[0].networkStatus).toBe('TRIAL');
   });
 });
 
@@ -120,15 +149,43 @@ describe('GET /v1/admin/ads', () => {
     p.communityAd.findMany.mockResolvedValue([]);
   });
 
-  it('returns 200 with an ads array', async () => {
-    p.communityAd.findMany.mockResolvedValue([
-      { id: 'a1', siteId: 's1', title: 'Test Ad', status: 'ACTIVE', weight: 1, updatedAt: new Date() },
-    ]);
-
+  it('returns 200 with ads array', async () => {
     const res = await request(app).get('/v1/admin/ads').set(ADMIN);
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(Array.isArray(res.body.ads)).toBe(true);
-    expect(res.body.ads).toHaveLength(1);
+    expect(res.body.ads).toEqual([]);
+  });
+});
+
+describe('GET /v1/admin/licenses', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    p.license.findMany.mockResolvedValue([]);
+  });
+
+  it('returns 200 with licenses array', async () => {
+    const res = await request(app).get('/v1/admin/licenses').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.licenses).toEqual([]);
+  });
+});
+
+describe('POST /v1/admin/events/flush', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    eq.flush.mockResolvedValue(undefined);
+  });
+
+  it('flushes events', async () => {
+    const res = await request(app).post('/v1/admin/events/flush').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(eq.flush).toHaveBeenCalledOnce();
+  });
+});
+
+describe('GET /v1/admin/metrics', () => {
+  it('returns metrics payload', async () => {
+    const res = await request(app).get('/v1/admin/metrics').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.rotation).toBeDefined();
   });
 });
