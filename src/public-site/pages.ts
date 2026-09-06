@@ -366,14 +366,34 @@ export function contactPage(): string {
   </div></section>`;
 }
 
-export function statusPage(): string {
+export function statusPage(status: {
+  overall: string;
+  checkedAt: string;
+  api: string;
+  version: string;
+  eligibleSites: number;
+  activeAds: number;
+  rotationAds: number;
+  forumPosts: number;
+  checkout: string;
+}): string {
+  const tone = status.overall === 'operational' ? 'ok' : 'warn';
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Status</p>
     <h1>Service status</h1>
-    <p class="hero-lead">Operational detail for the community API is available to operators via authenticated metrics. Public status expands at soft launch.</p>
+    <p class="hero-lead">Aggregate soft-launch health — no publisher domains or license data on this page.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap">
-    <div class="notice">Public incident history is not published yet. API health for operators: <code>GET /v1/health</code>.</div>
+    <div class="notice status-${tone}"><strong>${status.overall}</strong> · checked ${status.checkedAt} · v${status.version}</div>
+    <div class="metrics-grid" style="margin-top:1.5rem">
+      <div><span>API / DB</span><strong>${status.api}</strong></div>
+      <div><span>Eligible sites</span><strong>${status.eligibleSites}</strong></div>
+      <div><span>Active ads</span><strong>${status.activeAds}</strong></div>
+      <div><span>Rotation cache ads</span><strong>${status.rotationAds}</strong></div>
+      <div><span>Forum posts</span><strong>${status.forumPosts}</strong></div>
+      <div><span>Checkout</span><strong>${status.checkout}</strong></div>
+    </div>
+    <p style="margin-top:1.5rem;color:var(--ink-muted)">Operators use authenticated <code>/v1/health</code> and admin metrics for deeper runtime detail.</p>
   </div></section>`;
 }

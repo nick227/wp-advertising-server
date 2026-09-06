@@ -20,6 +20,8 @@ const { p, rc, eq } = vi.hoisted(() => {
     },
     license: { findMany: vi.fn(), count: vi.fn() },
     licenseActivation: { updateMany: vi.fn() },
+    communityPost: { count: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]),
   };
   const rc = {
     status: vi.fn().mockReturnValue({
@@ -90,6 +92,8 @@ describe('GET /v1/admin/overview', () => {
     p.communitySite.findMany.mockResolvedValue([
       { id: 'site_1', siteDomain: 'shop.example.com', networkStatus: 'TRIAL', optedIn: true, lastSeenAt: new Date() },
     ]);
+    p.communityPost.count.mockResolvedValue(7);
+    p.$queryRaw.mockResolvedValue([{ ok: 1 }]);
   });
 
   it('returns real delivery totals and top ads', async () => {
@@ -100,6 +104,7 @@ describe('GET /v1/admin/overview', () => {
     expect(res.body.counts.ctr).toBe(4);
     expect(res.body.topAds[0].site.siteDomain).toBe('shop.example.com');
     expect(res.body.recentSites).toHaveLength(1);
+    expect(res.body.softLaunch.checks.forumSeeded).toBe(true);
   });
 });
 

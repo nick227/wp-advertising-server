@@ -17,6 +17,7 @@ import {
 } from '../services/forumService.js';
 import { HttpError } from '../lib/errors.js';
 import { communityForumIndex, communityForumPost } from './communityForum.js';
+import { getPublicStatus } from '../services/publicStatusService.js';
 import { renderPage } from './layout.js';
 import {
   checkoutPage,
@@ -317,10 +318,18 @@ export function createPublicSiteRouter() {
     contactPage(),
   ));
 
-  router.get('/status', html(
-    { title: 'Status — WP Advertising', description: 'Public status for WP Advertising services.', path: '/status' },
-    statusPage(),
-  ));
+  router.get('/status', async (_req, res, next) => {
+    try {
+      const status = await getPublicStatus();
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage(
+        { title: 'Status — WP Advertising', description: 'Public status for WP Advertising services.', path: '/status' },
+        statusPage(status),
+      ));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   return router;
 }

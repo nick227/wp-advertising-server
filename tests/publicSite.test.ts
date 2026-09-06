@@ -4,9 +4,18 @@ import request from 'supertest';
 vi.mock('../src/lib/prisma.js', () => ({
   prisma: {
     $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]),
-    communitySite: { findMany: vi.fn().mockResolvedValue([]) },
-    communityAd: { findMany: vi.fn().mockResolvedValue([]) },
-    communityPost: { findMany: vi.fn().mockResolvedValue([]) },
+    communitySite: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    communityAd: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    communityPost: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
   },
 }));
 

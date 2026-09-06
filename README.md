@@ -222,6 +222,16 @@ After deploy, sample periodically:
 
 Request count alone is a weak scaling signal for this architecture.
 
+## Soft-launch seed
+
+```bash
+ALLOW_SOFT_LAUNCH_SEED=1 DATABASE_URL="mysql://..." npm run seed:soft-launch
+```
+
+Creates/updates eight `*.wp-advertising.test` Trial/Pro sites with house ads (idempotent). Safe for local and Railway staging when the flag is set. Then rebuild rotation cache via admin System or `POST /v1/admin/cache/rebuild`.
+
+Public soft-launch aggregates (no publisher domains): `GET /status`. Operator checklist: admin Overview → Soft-launch readiness.
+
 ---
 
 ## Architecture

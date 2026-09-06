@@ -4,6 +4,7 @@ import { notFound } from '../lib/errors.js';
 import { rotationCache } from './rotationCache.js';
 import { eventQueue } from './eventQueue.js';
 import { rateLimitStatus } from '../middleware/rateLimit.js';
+import { getSoftLaunchReadiness } from './publicStatusService.js';
 
 const siteSelect = {
   id: true,
@@ -244,6 +245,7 @@ export async function getAdminOverview() {
     adStatus: Object.fromEntries(byAdStatus.map((row) => [row.status, row._count._all])),
     topAds,
     recentSites,
+    softLaunch: await getSoftLaunchReadiness(),
     rotation: rotationCache.status(),
     events: eventQueue.status(),
     rateLimits: rateLimitStatus(),
