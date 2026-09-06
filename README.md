@@ -8,10 +8,11 @@ Backend microservice for the [WP Advertising](https://github.com) WordPress plug
 
 ## Overview
 
-- **Serve path is synchronous and cache-only.** `GET /v1/community/serve` reads from an in-memory rotation cache and never writes to MySQL during a serve request. Cache TTL is 30 s with stale-while-refresh.
-- **Event writes are async.** Impression and click events are pushed to an in-memory queue and batch-flushed to MySQL on a configurable interval.
+- **Serve path is synchronous and cache-only.** `GET /v1/community/serve` reads from an in-memory rotation cache and never writes to MySQL during a serve request. Cache TTL is 5 minutes with stale-while-refresh. Successful serves may enqueue an in-memory impression event (no browser→server tracking URLs).
+- **Event writes are async.** Impression and click events are pushed to an in-memory queue and batch-flushed to MySQL on a configurable interval. Raw event rows are off by default; rollups and counters remain.
 - **Single-replica only.** The rate limiter and rotation cache are in-process. Do not run multiple replicas without replacing them with a shared store (Redis).
 - **Auth model:** Sites authenticate with an `apiKey` returned at registration. Admin endpoints require a `Bearer` token in the `Authorization` header.
+- **No ghost tracking URLs.** Serve responses never include `impressionUrl` / `clickUrl` pointing at this service. Community clicks use the advertiser `targetUrl`.
 
 ---
 
@@ -128,13 +129,13 @@ https://<your-railway-domain>/v1
 | `DATABASE_URL` | Yes | — | MySQL connection string |
 | `PORT` | No | `4100` | Listen port (Railway sets this automatically) |
 | `NODE_ENV` | Yes (prod) | `development` | Set to `production` to enforce secret requirements |
-| `PUBLIC_BASE_URL` | Yes | — | Public base URL including `/v1`, used for impression/click token URLs |
+| `PUBLIC_BASE_URL` | Yes | — | Public base URL including `/v1` |
 | `ADMIN_TOKEN` | Yes (prod) | — | Bearer token for `/admin/*` and `/metrics` endpoints |
 | `EVENT_TOKEN_SECRET` | Yes (prod) | — | HMAC secret for signed event tokens (≥ 32 chars in production) |
 | `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
-| `EVENT_TRACKING_ENABLED` | No | `true` | Include impression/click URLs in serve responses |
-| `RAW_EVENTS_ENABLED` | No | `true` | Write individual event rows in addition to rollups |
-| `ROTATION_CACHE_TTL_MS` | No | `30000` | Rotation cache time-to-live in milliseconds |
+| `EVENT_TRACKING_ENABLED` | No | `true` | Enqueue impression on successful `/community/serve` |
+| `RAW_EVENTS_ENABLED` | No | `false` | Write individual event rows in addition to rollups |
+| `ROTATION_CACHE_TTL_MS` | No | `300000` | Rotation cache TTL (5 minutes); writes invalidate immediately |
 | `ROTATION_CACHE_WARM_ON_START` | No | `true` | Pre-fill cache before accepting traffic |
 | `EVENT_FLUSH_INTERVAL_MS` | No | `2000` | Event queue flush interval |
 | `EVENT_FLUSH_MAX_BATCH` | No | `500` | Max events per flush |
@@ -146,7 +147,7 @@ https://<your-railway-domain>/v1
 | `RATE_LIMIT_WRITE_MAX` | No | `120` | Max write requests per window per client |
 | `RATE_LIMIT_REGISTER_MAX` | No | `10` | Max register requests per window per client |
 | `RATE_LIMIT_ADMIN_MAX` | No | `120` | Max admin requests per window per client |
-| `RATE_LIMIT_MAX_BUCKETS` | No | `50000` | Max tracked clients before new IPs are denied |
+| `RATE_LIMIT_MAX_BUCKETS` | No | `10000` | Max tracked clients before new IPs are denied |
 
 The service refuses to start in production if `ADMIN_TOKEN` or `EVENT_TOKEN_SECRET` are missing, set to the development default, or shorter than 32 characters.
 
@@ -198,8 +199,6 @@ Admin token is passed as `Authorization: Bearer <ADMIN_TOKEN>`.
   "title": "Example Ad",
   "imageUrl": "https://example.com/banner.jpg",
   "targetUrl": "https://example.com/",
-  "impressionUrl": "https://<PUBLIC_BASE_URL>/community/events/impression?token=...",
-  "clickUrl": "https://<PUBLIC_BASE_URL>/community/events/click?token=...",
   "network": {
     "servedBy": "community",
     "algorithm": "cached-round-robin",
@@ -209,7 +208,18 @@ Admin token is passed as `Authorization: Bearer <ADMIN_TOKEN>`.
 }
 ```
 
-Pass `?tracking=0` to suppress `impressionUrl` and `clickUrl`.
+Clicks use `targetUrl` (advertiser destination). Impressions are counted when `/community/serve` succeeds (unless `?tracking=0`). Serve responses never include browser→server `impressionUrl` / `clickUrl` fields.
+
+### Cost / capacity baselines to watch
+
+After deploy, sample periodically:
+
+- process RSS memory
+- DB writes/minute
+- DB size growth/day
+- `/community/serve` p95 latency
+
+Request count alone is a weak scaling signal for this architecture.
 
 ---
 
@@ -219,18 +229,17 @@ Pass `?tracking=0` to suppress `impressionUrl` and `clickUrl`.
 WordPress plugin
       │  POST /sites/register → returns apiKey
       │  POST /sites/ad       → upsert ad
-      │  GET  /community/serve → returns ad JSON
+      │  GET  /community/serve → returns ad JSON (targetUrl only)
       ▼
 wp-ad-community-service (Express, single replica)
       │
-      ├── Rotation cache (in-memory, 30 s TTL)
+      ├── Rotation cache (in-memory, 5 min TTL)
       │   Populated from MySQL on first request and after writes.
       │   nextAd() is round-robin with self-serve exclusion.
       │
       ├── Event queue (in-memory, flushed every 2 s)
-      │   Impression/click events are enqueued and batch-written
-      │   to MySQL in a single transaction per flush cycle.
-      │   Requeued on failure; dropped if queue is full.
+      │   Serve-path impressions (and legacy token events) are enqueued
+      │   and batch-written to MySQL. Raw rows off by default.
       │
       └── MySQL (Prisma)
           CommunitySite · CommunityAd · CommunityEvent

@@ -73,6 +73,8 @@ const served = await request(`/community/serve?siteUrl=${encodeURIComponent(site
 assert(served.res.status === 200 || served.res.status === 204, `/community/serve unexpected: ${served.res.status} ${JSON.stringify(served.body)}`);
 if (served.res.status === 200) {
   assert(served.body.adId && served.body.targetUrl, 'serve response is missing adId/targetUrl');
+  assert(!served.body.impressionUrl && !served.body.clickUrl, 'serve must not emit browser tracking URLs');
+  assert(!JSON.stringify(served.body).includes('/community/events/'), 'serve body must not reference event endpoints');
 }
 
 const adminMetricsNoToken = await request('/admin/metrics');

@@ -88,10 +88,11 @@ paths:
           schema: { type: string, maxLength: 80 }
         - in: query
           name: tracking
+          description: When `0`, skip serve-path impression enqueue. Default counts delivery as an impression.
           schema: { type: string, enum: ['0', '1'] }
       responses:
         '200':
-          description: Community ad
+          description: "Community ad creative with advertiser targetUrl only (no browser tracking URLs)"
           headers:
             Cache-Control:
               schema: { type: string }
@@ -113,7 +114,7 @@ paths:
         '202': { description: Queued }
   /community/events/impression:
     get:
-      summary: Tracking pixel endpoint
+      summary: Legacy tracking pixel (not emitted in serve responses; prefer serve-path impressions)
       parameters:
         - in: query
           name: token
@@ -123,7 +124,7 @@ paths:
         '200': { description: 1x1 GIF }
   /community/events/click:
     get:
-      summary: Click tracking redirect endpoint
+      summary: Legacy click redirect (not emitted in serve responses; clients use targetUrl)
       parameters:
         - in: query
           name: token
@@ -246,9 +247,7 @@ components:
         siteId: { type: string }
         title: { type: string }
         imageUrl: { type: string }
-        targetUrl: { type: string }
-        impressionUrl: { type: string, format: uri }
-        clickUrl: { type: string, format: uri }
+        targetUrl: { type: string, description: Advertiser destination; browsers must click this URL directly }
         network:
           type: object
           properties:

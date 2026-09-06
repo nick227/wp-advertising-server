@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { normalizeSiteUrl, normalizeDomain, publicHttpUrlSchema } from '../lib/urlUtils.js';
 import { rotationCache } from './rotationCache.js';
+import { eventQueue } from './eventQueue.js';
 
 export const serveQuerySchema = z.object({
   siteUrl: publicHttpUrlSchema,
@@ -16,8 +17,6 @@ export type ServeResponse = {
   title: string;
   imageUrl: string;
   targetUrl: string;
-  impressionUrl?: string;
-  clickUrl?: string;
   network: {
     servedBy: 'community';
     algorithm: 'cached-round-robin';
@@ -37,7 +36,19 @@ export async function serveCommunityAd(input: z.infer<typeof serveQuerySchema>, 
   const ad = rotationCache.nextAd(sourceSite.id, siteDomain);
   if (!ad) return null;
 
-  const response: ServeResponse = {
+  // Delivery/impression signal is the serve itself — never emit browser→Railway tracking URLs.
+  if (config.eventTrackingEnabled && input.tracking !== '0') {
+    eventQueue.push({
+      adId: ad.adId,
+      sourceSiteId: sourceSite.id,
+      targetSiteId: ad.siteId,
+      type: 'IMPRESSION',
+      requestId,
+      createdAt: new Date(),
+    });
+  }
+
+  return {
     adId: ad.adId,
     siteId: ad.siteId,
     title: ad.title,
@@ -50,14 +61,6 @@ export async function serveCommunityAd(input: z.infer<typeof serveQuerySchema>, 
       cacheVersion: snapshot.version,
     },
   };
-
-  if (config.eventTrackingEnabled && input.tracking !== '0') {
-    const token = signEventToken({ adId: ad.adId, sourceSiteId: sourceSite.id, targetSiteId: ad.siteId, requestId });
-    response.impressionUrl = `${config.publicBaseUrl}/community/events/impression?token=${encodeURIComponent(token)}`;
-    response.clickUrl = `${config.publicBaseUrl}/community/events/click?token=${encodeURIComponent(token)}`;
-  }
-
-  return response;
 }
 
 export function signEventToken(payload: { adId: string; sourceSiteId: string; targetSiteId: string; requestId?: string }) {

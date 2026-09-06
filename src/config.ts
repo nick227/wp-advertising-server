@@ -29,7 +29,7 @@ export const config = {
   eventTokenSecret: process.env.EVENT_TOKEN_SECRET || 'dev-secret-change-me',
   eventTrackingEnabled: booleanFromEnv('EVENT_TRACKING_ENABLED', true),
 
-  rotationCacheTtlMs: numberFromEnv('ROTATION_CACHE_TTL_MS', 30000),
+  rotationCacheTtlMs: numberFromEnv('ROTATION_CACHE_TTL_MS', 300000),
   rotationCacheWarmOnStart: booleanFromEnv('ROTATION_CACHE_WARM_ON_START', true),
 
   eventFlushIntervalMs: numberFromEnv('EVENT_FLUSH_INTERVAL_MS', 2000),
@@ -37,8 +37,8 @@ export const config = {
   eventMaxQueue: numberFromEnv('EVENT_MAX_QUEUE', 5000),
   eventFlushLogThrottleMs: numberFromEnv('EVENT_FLUSH_LOG_THROTTLE_MS', 30000),
   shutdownTimeoutMs: numberFromEnv('SHUTDOWN_TIMEOUT_MS', 10000, 1000),
-  rateLimitMaxBuckets: numberFromEnv('RATE_LIMIT_MAX_BUCKETS', 50000),
-  rawEventsEnabled: booleanFromEnv('RAW_EVENTS_ENABLED', true),
+  rateLimitMaxBuckets: numberFromEnv('RATE_LIMIT_MAX_BUCKETS', 10000),
+  rawEventsEnabled: booleanFromEnv('RAW_EVENTS_ENABLED', false),
 
   rateLimitWindowMs: numberFromEnv('RATE_LIMIT_WINDOW_MS', 60000),
   rateLimitServeMax: numberFromEnv('RATE_LIMIT_SERVE_MAX', 600),
@@ -104,7 +104,9 @@ export function configSummary() {
     databaseConfigured: Boolean(config.databaseUrl),
     adminTokenConfigured: Boolean(config.adminToken && config.adminToken !== 'change-me'),
     eventTrackingEnabled: config.eventTrackingEnabled,
+    rawEventsEnabled: config.rawEventsEnabled,
     rotationCacheTtlMs: config.rotationCacheTtlMs,
+    rateLimitMaxBuckets: config.rateLimitMaxBuckets,
     eventFlushIntervalMs: config.eventFlushIntervalMs,
     eventMaxQueue: config.eventMaxQueue,
   };

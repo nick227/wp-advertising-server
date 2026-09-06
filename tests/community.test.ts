@@ -73,7 +73,7 @@ describe('GET /v1/community/serve', () => {
     expect(res.status).toBe(204);
   });
 
-  it('returns 200 with ad data and tracking URLs when an ad is available', async () => {
+  it('returns 200 with creative fields and no browser tracking URLs', async () => {
     rc.getSnapshot.mockResolvedValue(activeSiteSnapshot);
     rc.nextAd.mockReturnValue(rotationAd);
 
@@ -84,13 +84,20 @@ describe('GET /v1/community/serve', () => {
     expect(res.body.title).toBe(rotationAd.title);
     expect(res.body.imageUrl).toBe(rotationAd.imageUrl);
     expect(res.body.targetUrl).toBe(rotationAd.targetUrl);
-    expect(res.body.impressionUrl).toMatch(/\/community\/events\/impression\?token=/);
-    expect(res.body.clickUrl).toMatch(/\/community\/events\/click\?token=/);
+    expect(res.body.impressionUrl).toBeUndefined();
+    expect(res.body.clickUrl).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toMatch(/\/community\/events\//);
     expect(res.body.network.servedBy).toBe('community');
     expect(res.body.network.algorithm).toBe('cached-round-robin');
+    expect(eq.push).toHaveBeenCalledWith(expect.objectContaining({
+      adId: rotationAd.adId,
+      sourceSiteId: 'site_src',
+      targetSiteId: rotationAd.siteId,
+      type: 'IMPRESSION',
+    }));
   });
 
-  it('returns 200 without tracking URLs when tracking=0', async () => {
+  it('returns 200 without enqueueing impression when tracking=0', async () => {
     rc.getSnapshot.mockResolvedValue(activeSiteSnapshot);
     rc.nextAd.mockReturnValue(rotationAd);
 
@@ -99,6 +106,7 @@ describe('GET /v1/community/serve', () => {
     expect(res.status).toBe(200);
     expect(res.body.impressionUrl).toBeUndefined();
     expect(res.body.clickUrl).toBeUndefined();
+    expect(eq.push).not.toHaveBeenCalled();
   });
 
   it('returns 400 for an invalid siteUrl', async () => {
