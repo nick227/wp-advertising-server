@@ -4,13 +4,13 @@ export type PageMeta = {
   path: string;
 };
 
+export type NavUser = {
+  displayName: string;
+};
+
 const NAV = [
   { href: '/', label: 'Home' },
-  { href: '/plugin', label: 'Plugin' },
   { href: '/community', label: 'Community' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/help', label: 'Help' },
-  { href: '/investors', label: 'Investors' },
 ] as const;
 
 function esc(value: string): string {
@@ -21,19 +21,28 @@ function esc(value: string): string {
     .replaceAll('"', '&quot;');
 }
 
-function navHtml(currentPath: string): string {
+function navHtml(currentPath: string, user?: NavUser | null): string {
   const items = NAV.map((item) => {
-    const current = item.href === currentPath ? ' aria-current="page"' : '';
+    const current = item.href === currentPath || (item.href !== '/' && currentPath.startsWith(item.href))
+      ? ' aria-current="page"'
+      : '';
     return `<li><a href="${item.href}"${current}>${item.label}</a></li>`;
   }).join('');
+
+  const account = user
+    ? `<li class="nav-user"><span>${esc(user.displayName)}</span>
+        <form method="post" action="/community/logout" class="nav-logout">
+          <button class="btn btn-ghost" type="submit">Log out</button>
+        </form></li>`
+    : '';
 
   return `
   <header class="site-header">
     <div class="wrap nav">
       <a class="brand" href="/">WP <span>Advertising</span></a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-      <ul class="nav-links" id="site-nav">${items}
-        <li><a class="btn btn-primary" href="/pricing">Start 30-Day Trial</a></li>
+      <ul class="nav-links" id="site-nav">${items}${account}
+        <li><a class="btn btn-primary" href="/plugin/download">Download</a></li>
       </ul>
     </div>
   </header>`;
@@ -46,14 +55,13 @@ function footerHtml(): string {
       <div>
         <h2>WP Advertising</h2>
         <p style="color:var(--ink-muted);margin:0;max-width:28rem">
-          Advertising infrastructure for WordPress publishers, WooCommerce merchants, and independent advertisers.
+          A WordPress plugin for house ads, product ads, and optional shared community ads.
         </p>
       </div>
       <div>
         <h2>Product</h2>
         <ul>
-          <li><a href="/plugin">Plugin</a></li>
-          <li><a href="/pricing">Pricing</a></li>
+          <li><a href="/">Home</a></li>
           <li><a href="/community">Community</a></li>
           <li><a href="/checkout">Checkout</a></li>
         </ul>
@@ -61,8 +69,7 @@ function footerHtml(): string {
       <div>
         <h2>Help</h2>
         <ul>
-          <li><a href="/help">Documentation</a></li>
-          <li><a href="/help/getting-started">Getting started</a></li>
+          <li><a href="/#install">Install</a></li>
           <li><a href="/contact">Contact</a></li>
           <li><a href="/status">Status</a></li>
         </ul>
@@ -74,15 +81,14 @@ function footerHtml(): string {
           <li><a href="/terms">Terms</a></li>
           <li><a href="/community-standards">Community standards</a></li>
           <li><a href="/refunds">Refunds</a></li>
-          <li><a href="/investors">Investors</a></li>
         </ul>
       </div>
     </div>
-    <div class="wrap footer-note">© ${new Date().getUTCFullYear()} WP Advertising. Free local advertising never contacts the community server.</div>
+    <div class="wrap footer-note">© ${new Date().getUTCFullYear()} WP Advertising</div>
   </footer>`;
 }
 
-export function renderPage(meta: PageMeta, body: string): string {
+export function renderPage(meta: PageMeta, body: string, user?: NavUser | null): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -96,7 +102,7 @@ export function renderPage(meta: PageMeta, body: string): string {
   <link rel="stylesheet" href="/assets/site.css">
 </head>
 <body>
-  ${navHtml(meta.path)}
+  ${navHtml(meta.path, user)}
   <main>${body}</main>
   ${footerHtml()}
   <script src="/assets/site.js" defer></script>

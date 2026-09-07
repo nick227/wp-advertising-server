@@ -219,7 +219,7 @@ adminRouter.post('/admin/forum/posts/:postId/delete', async (req, res, next) => 
 adminRouter.post('/admin/forum/members/:membershipId/can-post', async (req, res, next) => {
   try {
     const membership = await setMembershipCanPost(req.params.membershipId, Boolean(req.body?.canPost));
-    res.json({ ok: true, requestId: req.requestId, membership });
+    res.json({ ok: true, requestId: req.requestId, membership, user: membership });
   } catch (error) {
     next(error);
   }

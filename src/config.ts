@@ -53,6 +53,7 @@ export const config = {
     process.env.PUBLIC_SITE_URL || derivePublicSiteUrl(process.env.PUBLIC_BASE_URL || 'http://localhost:4100/v1'),
   ),
   pluginDownloadUrl: (process.env.PLUGIN_DOWNLOAD_URL || '').trim(),
+  sessionSecret: (process.env.SESSION_SECRET || process.env.EVENT_TOKEN_SECRET || 'dev-secret-change-me').trim(),
   stripeSecretKey: (process.env.STRIPE_SECRET_KEY || '').trim(),
   stripeWebhookSecret: (process.env.STRIPE_WEBHOOK_SECRET || '').trim(),
   stripePriceMonthly: (process.env.STRIPE_PRICE_MONTHLY || '').trim(),

@@ -1,47 +1,36 @@
 import { prisma } from '../lib/prisma.js';
+import { hashPassword } from './communitySession.js';
 
 const PINNED: Array<{ title: string; type: 'POLICY' | 'ANNOUNCEMENT' | 'HELP' | 'DISCUSSION'; category: string; body: string }> = [
   {
-    title: 'How WP Advertising inventory exchange works',
+    title: 'Welcome to the WP Advertising Community',
+    type: 'ANNOUNCEMENT',
+    category: 'general',
+    body: 'This is a discussion space for people using the WP Advertising plugin. Create an account with email and password to post and comment.',
+  },
+  {
+    title: 'How house ads work in the plugin',
     type: 'HELP',
-    category: 'governance',
-    body: 'Eligible Trial/Pro sites sync one house creative and receive partner creatives via server-to-server /community/serve. Clicks go directly to the advertiser destination.',
+    category: 'general',
+    body: 'Create an ad in WordPress, pick a theme, preview it, then place it with a shortcode or embed on your pages.',
   },
   {
-    title: 'How community impressions and clicks are counted',
+    title: 'Optional shared community ads',
     type: 'HELP',
-    category: 'governance',
-    body: 'A successful Community serve counts as the delivery/impression signal. There is no browser→Railway tracking pixel in distributed creative HTML.',
-  },
-  {
-    title: 'Publisher privacy and anonymized reporting',
-    type: 'POLICY',
-    category: 'governance',
-    body: 'Operators see real domains in owner admin. Advertiser-facing anonymized publisher reporting remains deferred; default privacy still avoids leaking publisher identity to other publishers.',
-  },
-  {
-    title: 'Should high-traffic sites earn more distribution?',
-    type: 'DISCUSSION',
-    category: 'governance',
-    body: 'Contribution-weighted fairness is intentionally not implemented at launch. Discuss goals and failure modes here before any weighting ships.',
-  },
-  {
-    title: 'Should publisher identities ever be disclosed?',
-    type: 'DISCUSSION',
-    category: 'governance',
-    body: 'Default is anonymized advertiser views later. Optional identity opt-in may arrive after soft launch based on member feedback.',
+    category: 'general',
+    body: 'Premium can connect your site so you show an ad from another opted-in site and share one of yours in return. Free installs stay on your own site.',
   },
   {
     title: 'Community advertising standards',
     type: 'POLICY',
     category: 'governance',
-    body: 'No illegal, deceptive, or abusive creatives. Operators may pause/block ads and suspend network entitlement for violations.',
+    body: 'No illegal, deceptive, or abusive ads. Operators may remove posts or pause accounts that break these rules.',
   },
   {
-    title: 'Proposed network roadmap',
-    type: 'ANNOUNCEMENT',
-    category: 'governance',
-    body: 'Current focus: sales pipeline, operator admin data, and this simple forum. Anonymized advertiser analytics stay low priority until soft launch metrics are healthy.',
+    title: 'Questions and feedback',
+    type: 'DISCUSSION',
+    category: 'general',
+    body: 'Ask questions about installs, embeds, WooCommerce product ads, tracking, or Premium. Keep threads useful for other plugin users.',
   },
 ];
 
@@ -49,26 +38,12 @@ export async function seedForumIfEmpty() {
   const count = await prisma.communityPost.count();
   if (count > 0) return { seeded: false, posts: count };
 
-  let site = await prisma.communitySite.findUnique({ where: { siteDomain: 'wp-advertising.official' } });
-  if (!site) {
-    site = await prisma.communitySite.create({
+  let user = await prisma.communityUser.findUnique({ where: { email: 'team@wp-advertising.official' } });
+  if (!user) {
+    user = await prisma.communityUser.create({
       data: {
-        siteUrl: 'https://wp-advertising.official/',
-        siteDomain: 'wp-advertising.official',
-        siteName: 'WP Advertising Official',
-        publicKey: `pub_official_${Date.now()}`,
-        networkStatus: 'ACTIVE',
-        networkAccessUntil: new Date(Date.now() + 3650 * 86400000),
-        optedIn: false,
-      },
-    });
-  }
-
-  let membership = await prisma.communityMembership.findUnique({ where: { siteId: site.id } });
-  if (!membership) {
-    membership = await prisma.communityMembership.create({
-      data: {
-        siteId: site.id,
+        email: 'team@wp-advertising.official',
+        passwordHash: hashPassword(`seed-${Date.now()}-${Math.random()}`),
         displayName: 'WP Advertising Team',
         role: 'ADMIN',
         canPost: true,
@@ -84,7 +59,7 @@ export async function seedForumIfEmpty() {
       .slice(0, 180);
     await prisma.communityPost.create({
       data: {
-        authorId: membership.id,
+        authorId: user.id,
         title: item.title,
         body: item.body,
         type: item.type,

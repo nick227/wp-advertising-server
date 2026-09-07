@@ -16,6 +16,9 @@ vi.mock('../src/lib/prisma.js', () => ({
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
+    communityUser: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 
@@ -45,16 +48,13 @@ import { createApp } from '../src/app.js';
 
 const app = createApp();
 
-const pages = [
+const livePages = [
   '/',
-  '/plugin',
-  '/pricing',
   '/checkout',
   '/checkout/success',
   '/community',
-  '/help',
-  '/help/licensing',
-  '/investors',
+  '/community/login',
+  '/community/register',
   '/privacy',
   '/terms',
   '/community-standards',
@@ -63,18 +63,52 @@ const pages = [
   '/status',
 ];
 
+const retiredPages = [
+  '/plugin',
+  '/pricing',
+  '/help',
+  '/help/licensing',
+  '/investors',
+];
+
 describe('public product site', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it.each(pages)('GET %s returns HTML 200 with WP Advertising branding', async (path) => {
+  it.each(livePages)('GET %s returns HTML 200 with WP Advertising branding', async (path) => {
     const res = await request(app).get(path).set('Accept', 'text/html');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/html/);
     expect(res.text).toContain('WP');
     expect(res.text).toContain('Advertising');
     expect(res.text).toContain('/assets/site.css');
+  });
+
+  it.each(retiredPages)('GET %s redirects to homepage', async (path) => {
+    const res = await request(app).get(path);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/');
+  });
+
+  it('homepage is plugin-first with Free and Premium', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('What the plugin does');
+    expect(res.text).toContain('Free');
+    expect(res.text).toContain('Premium');
+    expect(res.text).toContain('Download');
+    expect(res.text).not.toContain('Start 30-Day Trial');
+    expect(res.text).not.toContain('href="/pricing"');
+    expect(res.text).not.toContain('href="/investors"');
+  });
+
+  it('nav is Home, Community, and Download', async () => {
+    const res = await request(app).get('/');
+    expect(res.text).toContain('href="/"');
+    expect(res.text).toContain('href="/community"');
+    expect(res.text).toContain('href="/plugin/download"');
+    expect(res.text).not.toContain('href="/help"');
   });
 
   it('serves site.css', async () => {
@@ -94,5 +128,11 @@ describe('public product site', () => {
     const res = await request(app).get('/v1/health');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+  });
+
+  it('plugin download without URL falls back to install section', async () => {
+    const res = await request(app).get('/plugin/download');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/#install');
   });
 });

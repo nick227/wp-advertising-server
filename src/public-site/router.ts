@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { Router, type RequestHandler } from 'express';
+import { ZodError } from 'zod';
 import { isStripeCheckoutConfigured, config } from '../config.js';
 import { lookupLicenseForCheckoutSession } from '../services/billingService.js';
 import { checkoutSessionSchema, createCheckoutSession } from '../services/checkoutService.js';
@@ -11,25 +12,37 @@ import {
   createForumPost,
   createPostSchema,
   getForumPost,
-  joinForum,
-  joinForumSchema,
   listForumPosts,
 } from '../services/forumService.js';
+import {
+  getCommunityUserById,
+  loginCommunityUser,
+  loginSchema,
+  registerCommunityUser,
+  registerSchema,
+} from '../services/communityAuthService.js';
+import {
+  clearSessionCookie,
+  createSessionToken,
+  readSessionCookie,
+  setSessionCookie,
+  verifySessionToken,
+} from '../services/communitySession.js';
 import { HttpError } from '../lib/errors.js';
-import { communityForumIndex, communityForumPost } from './communityForum.js';
+import {
+  communityForumIndex,
+  communityForumPost,
+  communityLoginPage,
+  communityRegisterPage,
+} from './communityForum.js';
 import { getPublicStatus } from '../services/publicStatusService.js';
-import { renderPage } from './layout.js';
+import { renderPage, type NavUser } from './layout.js';
 import {
   checkoutPage,
   checkoutSuccessPage,
   contactPage,
-  helpArticle,
-  helpIndexPage,
   homePage,
-  investorsPage,
   legalPage,
-  pluginPage,
-  pricingPage,
   statusPage,
 } from './pages.js';
 
@@ -38,6 +51,12 @@ export const publicSiteAssetsDir = path.resolve(__dirname, '../../public-site/as
 
 const CACHE_CONTROL = 'public, max-age=300';
 
+function formErrorMessage(error: unknown): string {
+  if (error instanceof HttpError) return error.message;
+  if (error instanceof ZodError) return error.issues[0]?.message || 'Invalid form input';
+  return 'Something went wrong';
+}
+
 function html(meta: { title: string; description: string; path: string }, body: string): RequestHandler {
   return (_req, res) => {
     res.setHeader('Cache-Control', CACHE_CONTROL);
@@ -45,48 +64,28 @@ function html(meta: { title: string; description: string; path: string }, body: 
   };
 }
 
-const helpBodies: Record<string, { title: string; body: string }> = {
-  'getting-started': {
-    title: 'Getting started',
-    body: `<p>Install WP Advertising, create a house ad, and keep Community API URL blank for Free local mode. Activate Trial only when you need external embeds or Community.</p>`,
-  },
-  'local-ads': {
-    title: 'Local ads',
-    body: `<p>Free advertising runs entirely on your WordPress site. Visitors never contact the WP Advertising community server.</p>`,
-  },
-  'community-network': {
-    title: 'Community network',
-    body: `<p>Entitled sites call <code>/v1/community/serve</code> server-to-server. Serve responses expose advertiser <code>targetUrl</code> only — no permanent Railway tracking URLs in HTML.</p>`,
-  },
-  woocommerce: {
-    title: 'WooCommerce',
-    body: `<p>Promote catalog products with native creatives. Advanced automation and higher limits require Trial or Pro.</p>`,
-  },
-  embeds: {
-    title: 'Embeds',
-    body: `<p>Same-domain embeds are Free. Loading embeds from other domains requires an active Trial or Pro entitlement.</p>`,
-  },
-  tracking: {
-    title: 'Tracking',
-    body: `<p>Local tracking stays on your WordPress site. Network impressions are counted when Community serve succeeds — browsers do not hit Railway pixels.</p>`,
-  },
-  licensing: {
-    title: 'Licensing',
-    body: `<p>The 30-day Trial starts when external or community advertising is first activated. Buy Pro via Checkout, then paste the license key in WP Advertising → Network entitlement → Activate Pro.</p>`,
-  },
-  billing: {
-    title: 'Billing',
-    body: `<p>Pro uses Stripe-hosted Checkout. Subscription changes and refunds are managed in Stripe; WP Advertising updates entitlement from signed webhooks.</p>`,
-  },
-  privacy: {
-    title: 'Privacy',
-    body: `<p>License validation may send site URL, plugin version, and license key. Community participation syncs site URL, creative, and aggregate delivery metrics. Publisher identity stays anonymized in advertiser reports by default.</p>`,
-  },
-  troubleshooting: {
-    title: 'Troubleshooting',
-    body: `<p>If Community returns empty, confirm Trial/Pro entitlement, opt-in status, and that a house creative is synced. Expired entitlements produce no community-server traffic from the plugin.</p>`,
-  },
-};
+function redirectHome(): RequestHandler {
+  return (_req, res) => {
+    res.redirect(302, '/');
+  };
+}
+
+async function currentUser(req: express.Request): Promise<NavUser | null> {
+  const token = readSessionCookie(req);
+  if (!token) return null;
+  const session = verifySessionToken(token);
+  if (!session) return null;
+  const user = await getCommunityUserById(session.userId);
+  if (!user) return null;
+  return { displayName: user.displayName };
+}
+
+async function currentUserId(req: express.Request): Promise<string | null> {
+  const token = readSessionCookie(req);
+  if (!token) return null;
+  const session = verifySessionToken(token);
+  return session?.userId ?? null;
+}
 
 export function createPublicSiteRouter() {
   const router = Router();
@@ -97,32 +96,32 @@ export function createPublicSiteRouter() {
   }));
 
   router.get('/', html(
-    { title: 'WP Advertising — The advertising network built for WordPress', description: 'Free local WordPress ads. Trial and Pro for external embeds and the WP Advertising Community network.', path: '/' },
+    {
+      title: 'WP Advertising — WordPress advertising plugin',
+      description: 'Create house ads and WooCommerce product ads on your WordPress site. Free locally. Premium available with a 30-day trial.',
+      path: '/',
+    },
     homePage(),
   ));
 
-  router.get('/plugin', html(
-    { title: 'Plugin — WP Advertising', description: 'Free same-domain advertising with optional Trial/Pro network distribution.', path: '/plugin' },
-    pluginPage({ downloadUrl: config.pluginDownloadUrl || undefined }),
-  ));
+  router.get('/plugin', redirectHome());
+  router.get('/pricing', redirectHome());
+  router.get('/help', redirectHome());
+  router.get('/help/:slug', redirectHome());
+  router.get('/investors', redirectHome());
 
   router.get('/plugin/download', (_req, res) => {
     if (!config.pluginDownloadUrl) {
-      res.redirect(302, '/plugin');
+      res.redirect(302, '/#install');
       return;
     }
     res.redirect(302, config.pluginDownloadUrl);
   });
 
-  router.get('/pricing', html(
-    { title: 'Pricing — WP Advertising', description: 'Free local advertising, 30-day Trial, and Pro for community distribution.', path: '/pricing' },
-    pricingPage(),
-  ));
-
   router.get('/checkout', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.type('html').send(renderPage(
-      { title: 'Checkout — WP Advertising', description: 'Start Stripe-hosted Checkout for WP Advertising Pro.', path: '/checkout' },
+      { title: 'Checkout — WP Advertising', description: 'Get WP Advertising Premium via Stripe Checkout.', path: '/checkout' },
       checkoutPage({
         configured: isStripeCheckoutConfigured(),
         canceled: req.query.canceled === '1',
@@ -148,7 +147,7 @@ export function createPublicSiteRouter() {
       }
       res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(renderPage(
-        { title: 'Checkout success — WP Advertising', description: 'Pro activation next steps after Stripe Checkout.', path: '/checkout/success' },
+        { title: 'Checkout success — WP Advertising', description: 'Premium activation next steps after Stripe Checkout.', path: '/checkout/success' },
         body,
       ));
     } catch (error) {
@@ -172,43 +171,65 @@ export function createPublicSiteRouter() {
     }
   });
 
-  router.get('/community', async (_req, res, next) => {
+  router.get('/community', async (req, res, next) => {
     try {
-      const posts = await listForumPosts();
-      res.setHeader('Cache-Control', 'public, max-age=30');
+      const [posts, user] = await Promise.all([listForumPosts(), currentUser(req)]);
+      res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(renderPage(
-        { title: 'Community — WP Advertising', description: 'Trial and Pro member forum for publishers and advertisers.', path: '/community' },
-        communityForumIndex(posts),
+        { title: 'Community — WP Advertising', description: 'Discussion space for WP Advertising plugin users.', path: '/community' },
+        communityForumIndex(posts, { user }),
+        user,
       ));
     } catch (error) {
       next(error);
     }
   });
 
-  router.get('/community/posts/:slug', async (req, res, next) => {
+  router.get('/community/login', async (req, res, next) => {
     try {
-      const post = await getForumPost(req.params.slug);
-      res.setHeader('Cache-Control', 'public, max-age=15');
+      const user = await currentUser(req);
+      if (user) {
+        res.redirect(302, '/community');
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(renderPage(
-        { title: `${post.title} — Community`, description: post.title, path: `/community/posts/${post.slug}` },
-        communityForumPost(post),
+        { title: 'Log in — Community', description: 'Log in to the WP Advertising Community.', path: '/community/login' },
+        communityLoginPage(),
       ));
     } catch (error) {
       next(error);
     }
   });
 
-  router.post('/community/join', async (req, res, next) => {
+  router.get('/community/register', async (req, res, next) => {
     try {
-      const input = joinForumSchema.parse(req.body);
-      await joinForum(input);
-      res.redirect(303, '/community?joined=1');
+      const user = await currentUser(req);
+      if (user) {
+        res.redirect(302, '/community');
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage(
+        { title: 'Register — Community', description: 'Create a WP Advertising Community account.', path: '/community/register' },
+        communityRegisterPage(),
+      ));
     } catch (error) {
-      if (error instanceof HttpError) {
-        const posts = await listForumPosts();
-        res.status(error.status).type('html').send(renderPage(
-          { title: 'Community — WP Advertising', description: 'Join failed', path: '/community' },
-          communityForumIndex(posts, error.message),
+      next(error);
+    }
+  });
+
+  router.post('/community/register', async (req, res, next) => {
+    try {
+      const input = registerSchema.parse(req.body);
+      const user = await registerCommunityUser(input);
+      setSessionCookie(res, createSessionToken(user.id));
+      res.redirect(303, '/community');
+    } catch (error) {
+      if (error instanceof HttpError || error instanceof ZodError) {
+        res.status(error instanceof HttpError ? error.status : 400).type('html').send(renderPage(
+          { title: 'Register — Community', description: 'Create a WP Advertising Community account.', path: '/community/register' },
+          communityRegisterPage(formErrorMessage(error)),
         ));
         return;
       }
@@ -216,17 +237,60 @@ export function createPublicSiteRouter() {
     }
   });
 
+  router.post('/community/login', async (req, res, next) => {
+    try {
+      const input = loginSchema.parse(req.body);
+      const user = await loginCommunityUser(input);
+      setSessionCookie(res, createSessionToken(user.id));
+      res.redirect(303, '/community');
+    } catch (error) {
+      if (error instanceof HttpError || error instanceof ZodError) {
+        res.status(error instanceof HttpError ? error.status : 400).type('html').send(renderPage(
+          { title: 'Log in — Community', description: 'Log in to the WP Advertising Community.', path: '/community/login' },
+          communityLoginPage(formErrorMessage(error)),
+        ));
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.post('/community/logout', (_req, res) => {
+    clearSessionCookie(res);
+    res.redirect(303, '/community');
+  });
+
+  router.get('/community/posts/:slug', async (req, res, next) => {
+    try {
+      const [post, user] = await Promise.all([getForumPost(req.params.slug), currentUser(req)]);
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage(
+        { title: `${post.title} — Community`, description: post.title, path: `/community/posts/${post.slug}` },
+        communityForumPost(post, { user }),
+        user,
+      ));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post('/community/posts', async (req, res, next) => {
     try {
+      const userId = await currentUserId(req);
+      if (!userId) {
+        res.redirect(303, '/community/login');
+        return;
+      }
       const input = createPostSchema.parse(req.body);
-      const post = await createForumPost(input);
+      const post = await createForumPost(userId, input);
       res.redirect(303, `/community/posts/${encodeURIComponent(post.slug)}`);
     } catch (error) {
-      if (error instanceof HttpError) {
-        const posts = await listForumPosts();
-        res.status(error.status).type('html').send(renderPage(
+      if (error instanceof HttpError || error instanceof ZodError) {
+        const [posts, user] = await Promise.all([listForumPosts(), currentUser(req)]);
+        res.status(error instanceof HttpError ? error.status : 400).type('html').send(renderPage(
           { title: 'Community — WP Advertising', description: 'Post failed', path: '/community' },
-          communityForumIndex(posts, error.message),
+          communityForumIndex(posts, { notice: formErrorMessage(error), user }),
+          user,
         ));
         return;
       }
@@ -236,16 +300,22 @@ export function createPublicSiteRouter() {
 
   router.post('/community/posts/:slug/comments', async (req, res, next) => {
     try {
+      const userId = await currentUserId(req);
+      if (!userId) {
+        res.redirect(303, '/community/login');
+        return;
+      }
       const input = createCommentSchema.parse(req.body);
-      await createForumComment(req.params.slug, input);
+      await createForumComment(userId, req.params.slug, input);
       res.redirect(303, `/community/posts/${encodeURIComponent(req.params.slug)}`);
     } catch (error) {
-      if (error instanceof HttpError) {
+      if (error instanceof HttpError || error instanceof ZodError) {
         try {
-          const post = await getForumPost(req.params.slug);
-          res.status(error.status).type('html').send(renderPage(
+          const [post, user] = await Promise.all([getForumPost(req.params.slug), currentUser(req)]);
+          res.status(error instanceof HttpError ? error.status : 400).type('html').send(renderPage(
             { title: `${post.title} — Community`, description: post.title, path: `/community/posts/${post.slug}` },
-            communityForumPost(post, error.message),
+            communityForumPost(post, { notice: formErrorMessage(error), user }),
+            user,
           ));
           return;
         } catch {
@@ -257,35 +327,13 @@ export function createPublicSiteRouter() {
     }
   });
 
-  router.get('/help', html(
-    { title: 'Help — WP Advertising', description: 'Documentation for local ads, community network, licensing, and billing.', path: '/help' },
-    helpIndexPage(),
-  ));
-
-  router.get('/help/:slug', (req, res, next) => {
-    const article = helpBodies[req.params.slug];
-    if (!article) {
-      next();
-      return;
-    }
-    res.setHeader('Cache-Control', CACHE_CONTROL);
-    res.type('html').send(renderPage(
-      { title: `${article.title} — WP Advertising Help`, description: article.title, path: `/help/${req.params.slug}` },
-      helpArticle(article.title, article.body),
-    ));
-  });
-
-  router.get('/investors', html(
-    { title: 'Investors — WP Advertising', description: 'Company thesis and cost-disciplined WordPress advertising network.', path: '/investors' },
-    investorsPage(),
-  ));
-
   router.get('/privacy', html(
     { title: 'Privacy — WP Advertising', description: 'Privacy policy for WP Advertising plugin and community services.', path: '/privacy' },
     legalPage('Privacy Policy', [
       'WP Advertising processes site configuration and optional community delivery metrics to operate the product.',
       'Free local advertising does not require community-server communication.',
       'License and community requests may include site URL, plugin version, and entitlement identifiers.',
+      'Community forum accounts store email, password hash, and display name.',
     ]),
   ));
 
@@ -293,7 +341,7 @@ export function createPublicSiteRouter() {
     { title: 'Terms — WP Advertising', description: 'Terms of service for WP Advertising.', path: '/terms' },
     legalPage('Terms of Service', [
       'Use of the WP Advertising plugin and network is subject to acceptable-use rules for advertising creatives and publisher inventory.',
-      'Trial and Pro entitlements are time-bounded. Network access ends when entitlement expires or is revoked.',
+      'Premium entitlements are time-bounded. Network access ends when entitlement expires or is revoked.',
     ]),
   ));
 
@@ -301,15 +349,15 @@ export function createPublicSiteRouter() {
     { title: 'Community standards — WP Advertising', description: 'Advertising and discussion standards for the WP Advertising Community.', path: '/community-standards' },
     legalPage('Community Standards', [
       'Members must not submit misleading, illegal, or abusive advertising creatives.',
-      'Publisher identity remains anonymized in advertiser reporting unless a publisher opts in to disclosure.',
+      'Forum posts must stay useful and respectful. Operators may lock posts or disable posting for accounts that break these rules.',
     ]),
   ));
 
   router.get('/refunds', html(
-    { title: 'Refunds — WP Advertising', description: 'Refund policy for WP Advertising Pro.', path: '/refunds' },
+    { title: 'Refunds — WP Advertising', description: 'Refund policy for WP Advertising Premium.', path: '/refunds' },
     legalPage('Refunds', [
-      'Pro subscriptions are billed through Stripe. Refund requests are evaluated against the published policy at launch.',
-      'Trial access is free and does not require payment.',
+      'Premium subscriptions are billed through Stripe. Refund requests are evaluated against the published policy at launch.',
+      'The 30-day Premium trial is free and does not require payment.',
     ]),
   ));
 

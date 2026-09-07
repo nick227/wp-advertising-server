@@ -1,10 +1,13 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
+import { hashPassword } from '../src/services/communitySession.js';
 
-const { p, rc } = vi.hoisted(() => {
+const { p } = vi.hoisted(() => {
   const p = {
-    communitySite: { findUnique: vi.fn() },
-    communityMembership: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    communityUser: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
     communityPost: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -13,24 +16,23 @@ const { p, rc } = vi.hoisted(() => {
     },
     communityComment: { create: vi.fn() },
   };
-  const rc = { invalidate: vi.fn() };
-  return { p, rc };
+  return { p };
 });
 
 vi.mock('../src/lib/prisma.js', () => ({ prisma: p }));
-vi.mock('../src/services/rotationCache.js', () => ({ rotationCache: rc }));
+vi.mock('../src/services/rotationCache.js', () => ({ rotationCache: { invalidate: vi.fn() } }));
 
 import { createApp } from '../src/app.js';
 
 const app = createApp();
 
-const site = {
-  id: 'site_forum',
-  publicKey: 'pub_forum_key_1234567890abcdef',
-  status: 'ACTIVE',
-  networkStatus: 'TRIAL',
-  networkAccessUntil: new Date(Date.now() + 86400000),
-  siteDomain: 'forum.example.com',
+const user = {
+  id: 'user_1',
+  email: 'writer@example.com',
+  passwordHash: hashPassword('password123'),
+  displayName: 'Writer',
+  role: 'MEMBER',
+  canPost: true,
 };
 
 describe('community forum API', () => {
@@ -59,24 +61,32 @@ describe('community forum API', () => {
     expect(res.body.posts[0].slug).toBe('hello');
   });
 
-  it('creates a post for an entitled member', async () => {
-    p.communitySite.findUnique.mockResolvedValue(site);
-    p.communityMembership.findUnique.mockResolvedValue({
-      id: 'mem_1',
-      siteId: site.id,
-      canPost: true,
+  it('registers a user and creates a post with session cookie', async () => {
+    p.communityUser.findUnique.mockResolvedValueOnce(null);
+    p.communityUser.create.mockResolvedValue({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
       role: 'MEMBER',
-      displayName: 'Publisher',
+      canPost: true,
+      createdAt: new Date(),
     });
+    p.communityUser.findUnique.mockResolvedValue(user);
     p.communityPost.create.mockResolvedValue({
       id: 'p2',
       slug: 'new-topic-abc123',
       title: 'New topic',
     });
 
-    const res = await request(app).post('/v1/forum/posts').send({
-      siteId: site.id,
-      apiKey: site.publicKey,
+    const agent = request.agent(app);
+    const register = await agent.post('/v1/forum/register').send({
+      email: user.email,
+      password: 'password123',
+      displayName: user.displayName,
+    });
+    expect(register.status).toBe(201);
+
+    const res = await agent.post('/v1/forum/posts').send({
       title: 'New topic',
       body: 'Body of the discussion post.',
     });
@@ -85,26 +95,12 @@ describe('community forum API', () => {
     expect(res.body.post.slug).toContain('new-topic');
   });
 
-  it('rejects posting without active entitlement', async () => {
-    p.communitySite.findUnique.mockResolvedValue({
-      ...site,
-      networkStatus: 'EXPIRED',
-      networkAccessUntil: new Date(Date.now() - 1000),
-    });
-    p.communityMembership.findUnique.mockResolvedValue({
-      id: 'mem_1',
-      siteId: site.id,
-      canPost: true,
-      role: 'MEMBER',
-    });
-
+  it('rejects posting without a session', async () => {
     const res = await request(app).post('/v1/forum/posts').send({
-      siteId: site.id,
-      apiKey: site.publicKey,
       title: 'Nope',
-      body: 'Should fail for expired.',
+      body: 'Should fail without login.',
     });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 });

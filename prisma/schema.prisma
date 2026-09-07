@@ -63,7 +63,6 @@ model CommunitySite {
   servedEvents   CommunityEvent[]      @relation("SourceSiteEvents")
   targetEvents   CommunityEvent[]      @relation("TargetSiteEvents")
   activations    LicenseActivation[]
-  membership     CommunityMembership?
 
   @@index([optedIn, status])
   @@index([status, optedIn])
@@ -193,24 +192,26 @@ enum CommunityPostType {
   HELP
 }
 
-model CommunityMembership {
-  id          String        @id @default(cuid())
-  siteId      String        @unique
-  site        CommunitySite @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  displayName String        @db.VarChar(120)
-  role        CommunityRole @default(MEMBER)
-  canPost     Boolean       @default(true)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+model CommunityUser {
+  id           String        @id @default(cuid())
+  email        String        @unique @db.VarChar(255)
+  passwordHash String        @db.VarChar(255)
+  displayName  String        @db.VarChar(120)
+  role         CommunityRole @default(MEMBER)
+  canPost      Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   posts    CommunityPost[]
   comments CommunityComment[]
+
+  @@index([createdAt])
 }
 
 model CommunityPost {
   id        String            @id @default(cuid())
   authorId  String
-  author    CommunityMembership @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    CommunityUser     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   type      CommunityPostType @default(DISCUSSION)
   title     String            @db.VarChar(200)
   body      String            @db.Text
@@ -229,14 +230,14 @@ model CommunityPost {
 }
 
 model CommunityComment {
-  id        String              @id @default(cuid())
+  id        String        @id @default(cuid())
   postId    String
-  post      CommunityPost       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    CommunityMembership @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body      String              @db.Text
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  author    CommunityUser @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String        @db.Text
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([postId, createdAt])
 }

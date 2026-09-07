@@ -5,7 +5,7 @@ const { p } = vi.hoisted(() => {
     communitySite: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     communityAd: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     communityPost: { count: vi.fn() },
-    communityMembership: { findUnique: vi.fn(), create: vi.fn() },
+    communityUser: { findUnique: vi.fn(), create: vi.fn() },
   };
   return { p };
 });

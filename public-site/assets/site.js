@@ -16,19 +16,3 @@ if (toggle && links) {
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
 }
-
-const monthlyBtn = document.querySelector('[data-billing="monthly"]');
-const annualBtn = document.querySelector('[data-billing="annual"]');
-const amountEls = document.querySelectorAll('[data-price-amount]');
-
-function setBilling(mode) {
-  if (!monthlyBtn || !annualBtn) return;
-  monthlyBtn.setAttribute('aria-pressed', mode === 'monthly' ? 'true' : 'false');
-  annualBtn.setAttribute('aria-pressed', mode === 'annual' ? 'true' : 'false');
-  amountEls.forEach((el) => {
-    el.textContent = mode === 'annual' ? el.getAttribute('data-annual') : el.getAttribute('data-monthly');
-  });
-}
-
-monthlyBtn?.addEventListener('click', () => setBilling('monthly'));
-annualBtn?.addEventListener('click', () => setBilling('annual'));

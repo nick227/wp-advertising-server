@@ -1,208 +1,104 @@
 export function homePage(): string {
   return `
   <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <p class="brand-mark">WP Advertising</p>
-        <h1>The advertising network built for WordPress.</h1>
-        <p class="hero-lead">Local same-domain ads are free. External distribution and the WP Advertising Community run on Trial or Pro — without putting Railway URLs in visitor browsers.</p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="/plugin">Download the Plugin</a>
-          <a class="btn btn-secondary" href="/checkout">Upgrade to Pro</a>
-        </div>
+    <div class="wrap">
+      <p class="brand-mark">WP Advertising</p>
+      <h1>A WordPress plugin for ads on your site.</h1>
+      <p class="hero-lead">Create house ads, promote WooCommerce products, place them with embeds or shortcodes, and optionally track impressions and clicks. Download it, upload it in WordPress, and start.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/plugin/download">Download the plugin</a>
+        <a class="btn btn-secondary" href="#pricing">See pricing</a>
       </div>
-      <figure class="network-visual" aria-label="Network exchange diagram">
-        <svg viewBox="0 0 480 280" role="img" aria-hidden="true">
-          <rect x="24" y="36" width="140" height="72" fill="#0b1f2a"/>
-          <text x="40" y="78" fill="#e8eef2" font-size="14" font-family="IBM Plex Sans, sans-serif">Publisher WP</text>
-          <rect x="316" y="36" width="140" height="72" fill="#0f5c4c"/>
-          <text x="336" y="78" fill="#fff" font-size="14" font-family="IBM Plex Sans, sans-serif">Advertiser WP</text>
-          <rect x="170" y="168" width="140" height="72" fill="#123447"/>
-          <text x="186" y="210" fill="#e8eef2" font-size="14" font-family="IBM Plex Sans, sans-serif">Community API</text>
-          <path d="M164 72 H316" stroke="#0f5c4c" stroke-width="2" fill="none"/>
-          <path d="M94 108 V168 H170" stroke="#9db0bc" stroke-width="2" fill="none"/>
-          <path d="M386 108 V168 H310" stroke="#9db0bc" stroke-width="2" fill="none"/>
-          <circle cx="240" cy="72" r="4" fill="#0f5c4c"/>
-        </svg>
-        <figcaption>Server-to-server delivery. Visitors click advertiser destinations directly.</figcaption>
-      </figure>
     </div>
   </section>
 
-  <section class="metrics">
+  <section class="section" id="what-it-does">
     <div class="wrap">
-      <div class="metrics-grid">
-        <div class="metric"><strong>—</strong><span>Network impressions</span></div>
-        <div class="metric"><strong>—</strong><span>Participating sites</span></div>
-        <div class="metric"><strong>—</strong><span>Advertiser clicks</span></div>
-        <div class="metric"><strong>Beta</strong><span>Launch status</span></div>
-      </div>
-      <p class="metric-note">Live network totals appear here when the soft-launch inventory is online. We do not publish fabricated scale.</p>
+      <h2>What the plugin does</h2>
+      <p class="section-lead">After you install it, you can do these things in WordPress:</p>
+      <ul class="feature-list">
+        <li>Create custom house ads with a label, headline, body, image, and button</li>
+        <li>Promote specific WooCommerce products, or rotate products from your catalog</li>
+        <li>Pick a visual theme for each ad</li>
+        <li>Preview ads in the admin before you publish them</li>
+        <li>Place ads with a shortcode or an embed snippet</li>
+        <li>Turn on local tracking for impressions and clicks, or leave tracking off</li>
+      </ul>
     </div>
   </section>
 
-  <section class="section">
+  <section class="section" id="install" style="padding-top:0">
+    <div class="wrap prose">
+      <h2>Install</h2>
+      <ol>
+        <li>Download the plugin ZIP.</li>
+        <li>In WordPress go to Plugins → Add New → Upload Plugin.</li>
+        <li>Activate WP Advertising.</li>
+        <li>Create an ad, copy the shortcode or embed, and place it on a page.</li>
+      </ol>
+      <p><a class="btn btn-primary" href="/plugin/download">Download plugin ZIP</a></p>
+      <p class="muted">If the download button is not configured yet, use the ZIP from your release channel and upload it the same way.</p>
+    </div>
+  </section>
+
+  <section class="section" id="pricing" style="padding-top:0">
     <div class="wrap">
-      <h2>Built for both sides of the exchange.</h2>
-      <p class="section-lead">Advertisers gain reach beyond their own domain. Site owners contribute inventory and participate in a shared WordPress-native network.</p>
-      <div class="split">
-        <article>
-          <h3>Advertisers</h3>
-          <p>Distribute product and house creatives across participating WordPress properties. Reporting stays anonymized at the publisher identity level by default.</p>
+      <h2>Pricing</h2>
+      <p class="section-lead">Two options. No account is required to use Free.</p>
+      <div class="price-grid price-grid-two">
+        <article class="price-card">
+          <h3>Free</h3>
+          <p class="amount">$0</p>
+          <ul>
+            <li>Ads on your own WordPress site</li>
+            <li>Themes, shortcodes, and embeds on your domain</li>
+            <li>Optional local tracking</li>
+            <li>No credit card</li>
+          </ul>
+          <a class="btn btn-secondary" href="/plugin/download">Download</a>
         </article>
-        <article>
-          <h3>Site owners</h3>
-          <p>Opt into Community when Trial or Pro is active. Free installs keep advertising local to the same WordPress domain — zero community-server cost.</p>
+        <article class="price-card featured">
+          <h3>Premium</h3>
+          <p class="amount">$29/mo</p>
+          <ul>
+            <li>Everything in Free</li>
+            <li>Optional shared community ads with other sites</li>
+            <li>Try Premium for 30 days — no credit card</li>
+            <li>After the trial, pay through Checkout and activate your license in WordPress</li>
+          </ul>
+          <a class="btn btn-primary" href="/checkout">Get Premium</a>
         </article>
       </div>
+      <p class="metric-note" style="margin-top:1rem">The 30-day trial starts in the plugin when you turn on Premium features. You do not need a card to start the trial. Annual billing is available at checkout.</p>
+    </div>
+  </section>
+
+  <section class="section" id="community-ads" style="padding-top:0">
+    <div class="wrap">
+      <h2>Optional: share ads with other sites</h2>
+      <p class="section-lead">Premium can connect your site so you show an ad from another opted-in site and share one of yours in return. Free installs stay on your site only.</p>
     </div>
   </section>
 
   <section class="section" style="padding-top:0">
     <div class="wrap">
-      <h2>How the network works</h2>
-      <p class="section-lead">Entitled WordPress sites request community creatives server-to-server. Clicks go to the advertiser URL. Expired trials are removed from rotation on the server.</p>
-      <div class="flow">
-        <div class="flow-step"><strong>1. Activate</strong><span style="color:var(--ink-muted)">Start Trial when you enable external or community advertising.</span></div>
-        <div class="flow-step"><strong>2. Contribute</strong><span style="color:var(--ink-muted)">Sync a house creative and opt into Community inventory.</span></div>
-        <div class="flow-step"><strong>3. Rotate</strong><span style="color:var(--ink-muted)">Eligible sites receive partner ads from the memory-only serve cache.</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section panel">
-    <div class="wrap panel-grid">
-      <div>
-        <h2>WooCommerce-native product advertising</h2>
-        <p class="section-lead">Promote catalog products with WordPress-native creatives. Advanced automation and higher limits ship with Trial and Pro.</p>
-        <a class="btn btn-ghost" href="/plugin">See plugin capabilities</a>
-      </div>
-      <div class="report-mock" aria-label="Anonymized reporting preview">
-        <div class="row"><span>Impressions</span><strong>—</strong></div>
-        <div class="row"><span>Clicks</span><strong>—</strong></div>
-        <div class="row"><span>Publisher count</span><strong>—</strong></div>
-        <div class="row"><span>Top placement</span><span class="muted">Publisher 01</span></div>
-        <div class="row"><span>Identity policy</span><span class="muted">Anonymized</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="wrap">
-      <h2>A member Community, not a generic forum</h2>
-      <p class="section-lead">Trial and Pro members discuss inventory fairness, publisher privacy, metrics definitions, and network standards. Expired members stay read-only.</p>
+      <h2>Community</h2>
+      <p class="section-lead">A discussion space for people using the plugin. Create a free account with email and password to post.</p>
       <a class="btn btn-secondary" href="/community">Open Community</a>
     </div>
   </section>
 
-  <section class="section" style="padding-top:0">
+  <section class="section" id="download" style="padding-top:0">
     <div class="wrap cta-band">
       <div>
-        <h2 style="margin:0 0 0.35rem;font-family:var(--font-display);letter-spacing:-0.03em;font-size:1.6rem">Put your WordPress ads in motion.</h2>
-        <p style="margin:0;color:var(--ink-muted)">30 days to try external embeds and Community participation.</p>
+        <h2 style="margin:0 0 0.35rem;font-family:var(--font-display);letter-spacing:-0.03em;font-size:1.6rem">Download and install</h2>
+        <p style="margin:0;color:var(--ink-muted)">Upload the ZIP in WordPress and create your first ad.</p>
       </div>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="/pricing">Start 30-Day Trial</a>
-        <a class="btn btn-secondary" href="/checkout">Go to Checkout</a>
+        <a class="btn btn-primary" href="/plugin/download">Download the plugin</a>
       </div>
     </div>
   </section>`;
-}
-
-export function pluginPage(options?: { downloadUrl?: string }): string {
-  const download = options?.downloadUrl
-    ? `<a class="btn btn-primary" href="/plugin/download">Download plugin ZIP</a>`
-    : `<a class="btn btn-primary" href="/help/getting-started">Install guide</a>`;
-  return `
-  <section class="page-hero"><div class="wrap">
-    <p class="brand-mark">Plugin</p>
-    <h1>WordPress advertising that stays local until you expand.</h1>
-    <p class="hero-lead">Free covers same-domain house ads, embeds, themes, and basic tracking. Trial and Pro unlock external distribution and Community network participation.</p>
-    <div class="hero-actions">
-      ${download}
-      <a class="btn btn-secondary" href="/checkout">Upgrade to Pro</a>
-    </div>
-  </div></section>
-  <section class="section" style="padding-top:0"><div class="wrap prose">
-    <h2>Free — local only</h2>
-    <ul>
-      <li>Create and rotate house ads on the installing domain</li>
-      <li>Same-domain embeds and shortcodes</li>
-      <li>Optional local impression and click tracking</li>
-      <li>Never contacts the community server</li>
-    </ul>
-    <h2>Trial / Pro — network</h2>
-    <ul>
-      <li>External embeds beyond your domain</li>
-      <li>Community opt-in, creative sync, and partner inventory</li>
-      <li>Higher limits and advanced WooCommerce automation</li>
-    </ul>
-    <h2>Installation</h2>
-    <ol>
-      <li>Download the plugin ZIP${options?.downloadUrl ? '' : ' (or install from your release channel)'} and upload it in WordPress → Plugins → Add New.</li>
-      <li>Create a house ad and copy the embed or shortcode (Free works with a blank Community API URL).</li>
-      <li>To join the network: paste the Community API URL, enable Community (starts Trial), or buy Pro and paste your license key.</li>
-    </ol>
-    <h2>FAQ</h2>
-    <p><strong>Does Free phone home?</strong> No. Blank community API URL means local-only operation.</p>
-    <p><strong>Where do community clicks go?</strong> Directly to the advertiser destination — not through Railway tracking URLs.</p>
-    <p><strong>When does the trial start?</strong> When external or community advertising is first activated — not merely on plugin install.</p>
-    <div class="cta-band" style="margin-top:2rem">
-      <div><strong>Ready to distribute beyond one domain?</strong></div>
-      <a class="btn btn-primary" href="/pricing">View Pricing</a>
-    </div>
-  </div></section>`;
-}
-
-export function pricingPage(): string {
-  return `
-  <section class="page-hero"><div class="wrap">
-    <p class="brand-mark">Pricing</p>
-    <h1>Free locally. Trial and Pro for the network.</h1>
-    <p class="hero-lead">One commercial plan after the 30-day trial. Buy Pro via Stripe-hosted Checkout, then activate the license key in WordPress.</p>
-  </div></section>
-  <section class="section" style="padding-top:0"><div class="wrap">
-    <div class="price-grid">
-      <article class="price-card">
-        <h3>Free — Local</h3>
-        <p class="amount">$0</p>
-        <ul>
-          <li>Same-domain advertising</li>
-          <li>Local embeds &amp; shortcodes</li>
-          <li>No account required</li>
-          <li>No community server usage</li>
-        </ul>
-        <a class="btn btn-secondary" href="/plugin">Download Free</a>
-      </article>
-      <article class="price-card featured">
-        <h3>Trial — 30 Days</h3>
-        <p class="amount">$0</p>
-        <ul>
-          <li>External embeds</li>
-          <li>Community network participation</li>
-          <li>Network reporting</li>
-          <li>Member Community access</li>
-        </ul>
-        <a class="btn btn-primary" href="/help/licensing">How trial starts</a>
-      </article>
-      <article class="price-card">
-        <h3>Pro</h3>
-        <p class="amount"><span data-price-amount data-monthly="$29/mo" data-annual="$290/yr">$29/mo</span></p>
-        <div class="billing-toggle" role="group" aria-label="Billing period">
-          <button type="button" data-billing="monthly" aria-pressed="true">Monthly</button>
-          <button type="button" data-billing="annual" aria-pressed="false">Annual</button>
-        </div>
-        <ul>
-          <li>Continued network access</li>
-          <li>Advanced reporting &amp; exports</li>
-          <li>Higher limits</li>
-          <li>Premium WooCommerce automation</li>
-        </ul>
-        <a class="btn btn-primary" href="/checkout">Continue to Checkout</a>
-      </article>
-    </div>
-    <p class="metric-note" style="margin-top:1rem">Displayed Pro prices are launch placeholders until Stripe products are connected.</p>
-  </div></section>`;
 }
 
 export function checkoutPage(options?: { configured?: boolean; canceled?: boolean }): string {
@@ -210,14 +106,14 @@ export function checkoutPage(options?: { configured?: boolean; canceled?: boolea
   const notice = options?.canceled
     ? '<div class="notice">Checkout was canceled. You can restart below whenever you are ready.</div>'
     : configured
-      ? '<div class="notice">You will complete payment on Stripe. Pro activates after the signed webhook confirms the subscription.</div>'
-      : '<div class="notice">Pro checkout is not configured on this environment yet. Set Stripe keys and price IDs, or continue with Free local advertising.</div>';
+      ? '<div class="notice">You will complete payment on Stripe. Premium activates after payment is confirmed.</div>'
+      : '<div class="notice">Premium checkout is not configured on this environment yet. You can still download Free and try Premium features for 30 days from the plugin.</div>';
 
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Checkout</p>
-    <h1>Stripe-hosted checkout.</h1>
-    <p class="hero-lead">Card entry happens on Stripe. This service only creates the Checkout Session.</p>
+    <h1>Get Premium</h1>
+    <p class="hero-lead">Pay on Stripe. Then activate the license key in the WP Advertising plugin.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     ${notice}
@@ -230,8 +126,8 @@ export function checkoutPage(options?: { configured?: boolean; canceled?: boolea
       </label>
       <label>Plan
         <select name="plan" style="display:block;width:100%;margin-top:0.35rem;padding:0.65rem;font:inherit">
-          <option value="monthly">Pro monthly</option>
-          <option value="annual">Pro annual</option>
+          <option value="monthly">Premium monthly</option>
+          <option value="annual">Premium annual</option>
         </select>
       </label>
       <button class="btn btn-primary" type="submit"${configured ? '' : ' disabled'}>Continue to Stripe</button>
@@ -256,20 +152,19 @@ export function checkoutSuccessPage(options?: {
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Checkout</p>
     <h1>Payment received.</h1>
-    <p class="hero-lead">Activate Pro on the same WordPress site URL you entered at checkout.</p>
+    <p class="hero-lead">Activate Premium on the same WordPress site URL you entered at checkout.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     ${licenseBlock}
     ${options?.email ? `<p style="color:var(--ink-muted)">Receipt email: ${escapeHtml(options.email)}</p>` : ''}
     <ol>
-      <li>Install WP Advertising (<a href="/plugin">download</a>) on that WordPress site if it is not installed yet.</li>
+      <li>Install WP Advertising (<a href="/plugin/download">download</a>) on that WordPress site if it is not installed yet.</li>
       <li>Set Community API URL to this service’s <code>/v1</code> base.</li>
       <li>Paste the license key under Network entitlement and click <strong>Activate Pro</strong>.</li>
-      <li>Enable Community when you are ready to join the network.</li>
     </ol>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="/plugin">Get the plugin</a>
-      <a class="btn btn-secondary" href="/help/licensing">Licensing help</a>
+      <a class="btn btn-primary" href="/plugin/download">Get the plugin</a>
+      <a class="btn btn-secondary" href="/#pricing">Back to pricing</a>
     </div>
   </div></section>`;
 }
@@ -282,64 +177,6 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function helpIndexPage(): string {
-  const topics = [
-    ['/help/getting-started', 'Getting started', 'Install, create a house ad, and understand Free vs Trial.'],
-    ['/help/local-ads', 'Local ads', 'Same-domain advertising with zero community-server traffic.'],
-    ['/help/community-network', 'Community network', 'Opt-in, serve path, and ghost-traffic protections.'],
-    ['/help/woocommerce', 'WooCommerce', 'Product creatives and automation tiers.'],
-    ['/help/embeds', 'Embeds', 'Same-domain vs external embed behavior.'],
-    ['/help/tracking', 'Tracking', 'Local analytics and serve-path impressions.'],
-    ['/help/licensing', 'Licensing', 'Trial start, Pro activation, and expiry.'],
-    ['/help/billing', 'Billing', 'Stripe Checkout and subscription management.'],
-    ['/help/privacy', 'Privacy', 'What data leaves a WordPress site.'],
-    ['/help/troubleshooting', 'Troubleshooting', 'Common install and network issues.'],
-  ] as const;
-
-  return `
-  <section class="page-hero"><div class="wrap">
-    <p class="brand-mark">Help</p>
-    <h1>Documentation and support.</h1>
-    <p class="hero-lead">Practical guides for local advertising, Community participation, licensing, and privacy.</p>
-  </div></section>
-  <section class="section" style="padding-top:0"><div class="wrap">
-    <ul class="help-list">
-      ${topics.map(([href, title, blurb]) => `<li><a href="${href}">${title}<span>${blurb}</span></a></li>`).join('')}
-    </ul>
-  </div></section>`;
-}
-
-export function helpArticle(title: string, body: string): string {
-  return `
-  <section class="page-hero"><div class="wrap">
-    <p class="brand-mark">Help</p>
-    <h1>${title}</h1>
-  </div></section>
-  <section class="section" style="padding-top:0"><div class="wrap prose">${body}
-    <p><a href="/help">← All help topics</a></p>
-  </div></section>`;
-}
-
-export function investorsPage(): string {
-  return `
-  <section class="page-hero"><div class="wrap">
-    <p class="brand-mark">Investors</p>
-    <h1>WordPress advertising infrastructure with cost discipline.</h1>
-    <p class="hero-lead">A two-sided network for independent publishers and advertisers — designed to stay cheap to operate until measured traffic forces scale.</p>
-  </div></section>
-  <section class="section" style="padding-top:0"><div class="wrap prose">
-    <h2>Thesis</h2>
-    <p>WordPress still powers a large share of the independent web, but native cross-site advertising tooling remains fragmented. WP Advertising pairs a free local plugin with an optional community network.</p>
-    <h2>Flywheel</h2>
-    <p>More entitled publishers contribute inventory; advertisers gain distribution; anonymized reporting builds trust; Community governance keeps rules transparent.</p>
-    <h2>Business model</h2>
-    <p>Free local usage creates distribution. Trial converts operators who need external reach. Pro subscriptions fund the community API.</p>
-    <h2>Technology posture</h2>
-    <p>One Node process, one SQL database, memory-only serve cache, aggregate analytics by default. No fabricated network metrics on this site.</p>
-    <p><a class="btn btn-primary" href="/contact">Contact</a></p>
-  </div></section>`;
-}
-
 export function legalPage(title: string, paragraphs: string[]): string {
   return `
   <section class="page-hero"><div class="wrap">
@@ -348,7 +185,7 @@ export function legalPage(title: string, paragraphs: string[]): string {
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     ${paragraphs.map((p) => `<p>${p}</p>`).join('')}
-    <p style="color:var(--ink-muted)">This is a launch shell. Final counsel-reviewed copy will replace these placeholders before public Pro launch.</p>
+    <p style="color:var(--ink-muted)">This is a launch shell. Final counsel-reviewed copy will replace these placeholders before public Premium launch.</p>
   </div></section>`;
 }
 
@@ -357,7 +194,7 @@ export function contactPage(): string {
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Contact</p>
     <h1>Support and partnerships.</h1>
-    <p class="hero-lead">For product support, privacy requests, and early Pro access.</p>
+    <p class="hero-lead">For product support, privacy requests, and Premium access.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     <p>Email: <a href="mailto:support@wp-advertising.example">support@wp-advertising.example</a></p>
