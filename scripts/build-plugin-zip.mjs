@@ -6,7 +6,7 @@ import AdmZip from 'adm-zip';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Paths relative to this script
-const pluginDir = path.resolve(__dirname, '../../wp-advertising');
+const pluginDir = path.resolve(__dirname, '../wp-advertising');
 const outDir = path.resolve(__dirname, '../public-site/assets');
 const outFileStable = path.resolve(outDir, 'wp-advertising.zip');
 const outReleaseJson = path.resolve(outDir, 'plugin-release.json');

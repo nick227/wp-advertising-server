@@ -1,0 +1,914 @@
+.wpa-wrap {
+  --wpa-admin-bg: #f6f7fb;
+  --wpa-card-bg: #fff;
+  --wpa-border: #dcdcde;
+  --wpa-muted: #646970;
+  --wpa-strong: #1d2327;
+  --wpa-radius: 18px;
+}
+
+.wpa-wrap .wpa-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin: 18px 0;
+  padding: 22px 24px;
+  border: 1px solid var(--wpa-border);
+  border-radius: var(--wpa-radius);
+  background: linear-gradient(135deg, #111827, #273449);
+  color: #fff;
+}
+
+.wpa-wrap .wpa-hero h1 {
+  margin: 0 0 6px;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.wpa-wrap .wpa-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: rgba(255,255,255,.78);
+  font-size: 14px;
+}
+
+.wpa-wrap .wpa-hero .wpa-build-meta {
+  margin-top: 8px;
+  color: rgba(255,255,255,.45);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.wpa-wrap .wpa-hero .wpa-build-meta small {
+  font-size: inherit;
+}
+
+.wpa-wrap .wpa-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(560px, 1fr) minmax(390px, 460px);
+  gap: 20px;
+  align-items: start;
+}
+
+.wpa-wrap .wpa-performance-grid {
+  grid-template-columns: minmax(700px, 1fr) minmax(390px, 450px);
+}
+
+.wpa-wrap .wpa-panel {
+  padding: 20px;
+  border: 1px solid var(--wpa-border);
+  border-radius: var(--wpa-radius);
+  background: var(--wpa-card-bg);
+  box-shadow: 0 12px 30px rgba(15,23,42,.06);
+}
+
+.wpa-wrap .wpa-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.wpa-wrap .wpa-panel h2,
+.wpa-wrap .wpa-panel h3 {
+  margin-top: 0;
+}
+
+.wpa-wrap .wpa-panel p {
+  color: var(--wpa-muted);
+}
+
+.wpa-form-grid,
+.wpa-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wpa-form-grid .wpa-field:nth-child(5),
+.wpa-form-grid .wpa-field:nth-child(7),
+.wpa-form-grid .wpa-field:nth-child(8) {
+  grid-column: 1 / -1;
+}
+
+.wpa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.wpa-field span {
+  font-weight: 700;
+  color: var(--wpa-strong);
+}
+
+.wpa-field input,
+.wpa-field textarea,
+.wpa-field select,
+.wpa-embed-box textarea {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 10px;
+  border-color: #c3c4c7;
+}
+
+.wpa-field textarea,
+.wpa-embed-box textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.wpa-product-mode-field,
+.wpa-product-id-field {
+  transition: opacity .15s ease;
+}
+
+.wpa-theme-picker {
+  margin: 8px 0 18px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.wpa-theme-picker h3 {
+  margin: 0 0 12px;
+}
+
+.wpa-theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  margin: 0 8px 8px 0;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.wpa-theme-option input {
+  margin: 0;
+}
+
+.wpa-theme-swatch-dark { background: #111827; color: #fff; border-color: #111827; }
+.wpa-theme-swatch-light { background: #fff; color: #111827; }
+.wpa-theme-swatch-warm { background: #fff7ed; color: #7c2d12; border-color: #fed7aa; }
+.wpa-theme-swatch-neon { background: #09090b; color: #a3e635; border-color: #a3e635; }
+.wpa-theme-swatch-minimal { background: #f8fafc; color: #0f172a; }
+
+.wpa-checks {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 8px 0 20px;
+}
+
+.wpa-actions,
+.wpa-under-table-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.wpa-live-panel {
+  position: sticky;
+  top: 48px;
+}
+
+.wpa-preview-stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 460px;
+  padding: 22px;
+  border-radius: 18px;
+  background: radial-gradient(circle at top, #eef2ff, #f8fafc 45%, #fff);
+  border: 1px dashed #cbd5e1;
+}
+
+.wpa-admin-preview-card {
+  transform: none;
+  max-width: 390px !important;
+  pointer-events: none;
+}
+
+.wpa-embed-box {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+}
+
+.wpa-embed-box textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.wpa-performance-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.wpa-performance-table th,
+.wpa-performance-table td {
+  padding: 13px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+
+.wpa-performance-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.wpa-performance-table td small {
+  display: block;
+  color: var(--wpa-muted);
+  margin-top: 3px;
+}
+
+.wpa-house-row td {
+  background: #f9fafb;
+}
+
+.wpa-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.wpa-status-active { background: #dcfce7; color: #166534; }
+.wpa-status-paused { background: #fef3c7; color: #92400e; }
+
+.wpa-row-actions {
+  white-space: nowrap;
+}
+
+.wpa-empty-cell {
+  text-align: center;
+  color: var(--wpa-muted);
+  padding: 28px !important;
+}
+
+.wpa-card {
+  --wpa-bg: #111827;
+  --wpa-fg: #fff;
+  --wpa-muted: #c7cedb;
+  --wpa-soft: #202938;
+  --wpa-btn-bg: #fff;
+  --wpa-btn-fg: #111827;
+  --wpa-border: rgba(255,255,255,.12);
+  --wpa-shadow: 0 18px 45px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 380px;
+  padding: 18px;
+  border-radius: 24px;
+  background: var(--wpa-bg);
+  color: var(--wpa-fg);
+  text-decoration: none;
+  font-family: Inter, Arial, sans-serif;
+  border: 1px solid var(--wpa-border);
+  box-shadow: var(--wpa-shadow);
+  overflow: hidden;
+}
+
+.wpa-card * { box-sizing: border-box; }
+.wpa-theme-light { --wpa-bg:#fff; --wpa-fg:#111827; --wpa-muted:#5b6472; --wpa-soft:#f1f5f9; --wpa-btn-bg:#111827; --wpa-btn-fg:#fff; --wpa-border:#e5e7eb; --wpa-shadow:0 18px 35px rgba(15,23,42,.12); }
+.wpa-theme-warm { --wpa-bg:#fff7ed; --wpa-fg:#321a07; --wpa-muted:#7c4a22; --wpa-soft:#fed7aa; --wpa-btn-bg:#ea580c; --wpa-btn-fg:#fff; --wpa-border:#fdba74; --wpa-shadow:0 18px 35px rgba(234,88,12,.18); }
+.wpa-theme-neon { --wpa-bg:#09090b; --wpa-fg:#f5f3ff; --wpa-muted:#c4b5fd; --wpa-soft:#18181b; --wpa-btn-bg:#a3e635; --wpa-btn-fg:#101010; --wpa-border:rgba(163,230,53,.34); --wpa-shadow:0 18px 45px rgba(163,230,53,.16); }
+.wpa-theme-minimal { --wpa-bg:#f8fafc; --wpa-fg:#0f172a; --wpa-muted:#64748b; --wpa-soft:#e2e8f0; --wpa-btn-bg:#0f172a; --wpa-btn-fg:#f8fafc; --wpa-border:#cbd5e1; --wpa-shadow:none; border-radius:12px; }
+
+.wpa-kicker { display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--wpa-muted); margin-bottom:12px; font-weight:800; }
+.wpa-image-wrap { display:block; aspect-ratio:1/1; width:100%; border-radius:18px; overflow:hidden; background:var(--wpa-soft); margin-bottom:14px; }
+.wpa-image-wrap img { display:block; width:100%; height:100%; object-fit:cover; }
+.wpa-image-placeholder { display:flex; align-items:center; justify-content:center; color:var(--wpa-muted); font-weight:800; }
+.wpa-title { display:block; font-size:19px; line-height:1.12; font-weight:900; margin-bottom:8px; color:var(--wpa-fg); }
+.wpa-body { display:block; color:var(--wpa-muted); font-size:13px; line-height:1.45; margin-bottom:12px; }
+.wpa-price { display:block; color:var(--wpa-fg); font-size:15px; font-weight:800; margin-bottom:14px; }
+.wpa-cta { display:inline-flex; align-items:center; border-radius:999px; background:var(--wpa-btn-bg); color:var(--wpa-btn-fg); padding:9px 14px; font-size:13px; font-weight:900; }
+.wpa-footer { display:block; }
+
+@media (max-width: 1180px) {
+  .wpa-wrap .wpa-builder-grid,
+  .wpa-wrap .wpa-performance-grid {
+    grid-template-columns: 1fr;
+  }
+  .wpa-live-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 782px) {
+  .wpa-form-grid,
+  .wpa-field-row {
+    grid-template-columns: 1fr;
+  }
+  .wpa-wrap .wpa-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.wpa-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+}
+
+.wpa-zone-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--wpa-border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.wpa-zone-summary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wpa-zone-summary-copy strong {
+  color: var(--wpa-strong);
+  font-size: 13px;
+}
+
+.wpa-zone-summary-copy span {
+  color: var(--wpa-muted);
+  font-size: 12px;
+}
+
+.wpa-table-scroll .wpa-performance-table {
+  min-width: 880px;
+}
+
+.wpa-product-id-field {
+  position: relative;
+}
+
+.wpa-selected-product {
+  display: block;
+  color: var(--wpa-muted);
+  margin-top: 6px;
+}
+
+.wpa-product-results {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% - 2px);
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  box-shadow: 0 18px 35px rgba(15,23,42,.16);
+  max-height: 280px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.wpa-product-result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wpa-product-result:hover,
+.wpa-product-result:focus {
+  background: #f1f5f9;
+}
+
+.wpa-product-result:disabled {
+  color: var(--wpa-muted);
+  cursor: default;
+}
+
+.wpa-product-result img {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  object-fit: cover;
+  background: #f1f5f9;
+}
+
+/* V7.5 revised main controls */
+.wpa-main-controls.wpa-panel {
+  display: grid;
+  gap: 0;
+  margin: 18px 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wpa-main-controls .wpa-main-row {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: center;
+  min-height: 76px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.wpa-main-controls .wpa-main-row:last-child {
+  border-bottom: 0;
+}
+
+.wpa-main-controls .wpa-row-title {
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.wpa-main-controls .wpa-row-body {
+  min-width: 0;
+}
+
+.wpa-main-controls .wpa-row-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.wpa-main-controls .wpa-control-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.wpa-main-controls .wpa-range-form label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-weight: 800;
+}
+
+.wpa-main-controls .wpa-range-form input,
+.wpa-main-controls .wpa-range-form select {
+  width: 100%;
+  min-height: 38px;
+}
+
+.wpa-main-controls .wpa-switch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  align-items: center;
+}
+
+.wpa-main-controls .wpa-toggle-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.wpa-main-controls .wpa-toggle-line input {
+  margin: 0;
+}
+
+.wpa-main-controls .wpa-shortcode-row code {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.wpa-main-controls .wpa-origin-row strong {
+  display: block;
+  color: #0f172a;
+  font-size: 17px;
+  word-break: break-word;
+}
+
+.wpa-main-controls .wpa-origin-row small {
+  color: #64748b;
+}
+
+@media (max-width: 960px) {
+  .wpa-main-controls .wpa-main-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .wpa-main-controls .wpa-row-actions {
+    justify-content: flex-start;
+  }
+
+  .wpa-main-controls .wpa-control-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wpa-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 0;
+}
+
+.wpa-performance-table th a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wpa-performance-table th a:hover {
+  text-decoration: underline;
+}
+
+.wpa-table-scroll .wpa-performance-table {
+  min-width: 1120px;
+}
+
+.wpa-performance-table td small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+}
+
+.wpa-community-row td:first-child strong::after {
+  content: 'Community';
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  vertical-align: middle;
+}
+
+.wpa-community-mini {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.compact-preview .wpa-card {
+  max-width: 300px;
+  transform-origin: top left;
+}
+
+
+/* V7.5.2 main page layout correction */
+.wpa-wrap .wpa-performance-grid {
+  grid-template-columns: minmax(720px, 1fr) minmax(390px, 450px);
+  gap: 20px;
+  align-items: start;
+}
+
+.wpa-performance-stack {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.wpa-main-controls.wpa-panel {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wpa-main-controls .wpa-main-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  min-height: 84px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.wpa-main-controls .wpa-main-row:nth-child(even) {
+  background: #fbfcfe;
+}
+
+.wpa-main-controls .wpa-main-row:last-child {
+  border-bottom: 0;
+}
+
+.wpa-main-controls .wpa-row-title {
+  color: #1d2327;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wpa-main-controls .wpa-row-body {
+  min-width: 0;
+}
+
+.wpa-main-controls .wpa-row-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.wpa-main-controls .wpa-control-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(100px, .55fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.wpa-main-controls .wpa-range-form label {
+  display: grid;
+  gap: 6px;
+  color: #50575e;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.wpa-main-controls .wpa-range-form input,
+.wpa-main-controls .wpa-range-form select {
+  width: 100%;
+  min-height: 38px;
+}
+
+.wpa-main-controls .wpa-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(210px, 1fr));
+  gap: 14px 24px;
+  align-items: center;
+}
+
+.wpa-main-controls .wpa-toggle-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #1d2327;
+  font-weight: 600;
+}
+
+.wpa-main-controls .wpa-toggle-line input {
+  margin: 0;
+}
+
+.wpa-main-controls .wpa-shortcode-row code {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+  background: #f6f7f7;
+  color: #1d2327;
+  white-space: nowrap;
+}
+
+.wpa-main-controls .wpa-origin-row strong {
+  display: block;
+  color: #1d2327;
+  font-size: 15px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.wpa-main-controls .wpa-origin-row small {
+  color: #646970;
+}
+
+.wpa-live-panel {
+  align-self: start;
+}
+
+@media (max-width: 1100px) {
+  .wpa-main-controls .wpa-main-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .wpa-main-controls .wpa-row-actions {
+    justify-content: flex-start;
+  }
+
+  .wpa-main-controls .wpa-control-row,
+  .wpa-main-controls .wpa-switch-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* V7.5.3 main-page controls and mirrored preview rail */
+.wpa-main-controls.wpa-panel {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wpa-main-controls .wpa-main-row {
+  grid-template-columns: 170px minmax(0, 1fr) auto;
+  min-height: 88px;
+  padding: 22px 24px;
+}
+
+.wpa-main-controls .wpa-apply-row {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 68px;
+  padding: 16px 24px;
+}
+
+.wpa-main-controls .wpa-apply-row .wpa-row-body {
+  display: none;
+}
+
+.wpa-main-controls .wpa-apply-row .wpa-row-actions {
+  justify-content: flex-end;
+}
+
+.wpa-live-stack {
+  position: sticky;
+  top: 48px;
+  display: grid;
+  gap: 20px;
+  align-self: start;
+}
+
+.wpa-live-stack .wpa-live-panel {
+  position: static;
+}
+
+.wpa-preview-panel h2,
+.wpa-preview-panel h3 {
+  margin: 0;
+}
+
+.wpa-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wpa-preview-panel .wpa-preview-stage {
+  min-height: 360px;
+}
+
+.wpa-preview-panel .compact-preview {
+  min-height: 340px;
+}
+
+.wpa-preview-panel .compact-preview .wpa-card {
+  max-width: 360px;
+}
+
+.wpa-preview-panel .wpa-embed-box h3 {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 1180px) {
+  .wpa-live-stack {
+    position: static;
+  }
+}
+
+@media (max-width: 1100px) {
+  .wpa-main-controls .wpa-main-row,
+  .wpa-main-controls .wpa-apply-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .wpa-main-controls .wpa-apply-row .wpa-row-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* V7.5.4: restore full-width Section One rows after preview/action changes */
+.wpa-wrap .wpa-performance-grid {
+  grid-template-columns: minmax(760px, 1fr) minmax(390px, 450px);
+  gap: 20px;
+}
+
+.wpa-main-controls.wpa-panel {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.wpa-main-controls .wpa-main-row,
+.wpa-main-controls .wpa-apply-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) minmax(90px, auto);
+  gap: 24px;
+  align-items: center;
+  width: 100%;
+  min-height: 84px;
+  padding: 20px 22px;
+  box-sizing: border-box;
+}
+
+.wpa-main-controls .wpa-range-form {
+  min-height: 96px;
+}
+
+.wpa-main-controls .wpa-row-body {
+  min-width: 0;
+  width: 100%;
+}
+
+.wpa-main-controls .wpa-row-actions:empty {
+  min-width: 90px;
+}
+
+.wpa-main-controls .wpa-apply-row {
+  justify-content: stretch;
+  min-height: 72px;
+  padding: 16px 22px;
+}
+
+.wpa-main-controls .wpa-apply-row .wpa-row-body {
+  display: block;
+}
+
+.wpa-main-controls .wpa-apply-row .wpa-row-actions {
+  justify-content: flex-end;
+}
+
+.wpa-main-controls .wpa-control-row {
+  grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(110px, .55fr);
+  gap: 18px;
+}
+
+@media (max-width: 1180px) {
+  .wpa-wrap .wpa-performance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .wpa-main-controls .wpa-main-row,
+  .wpa-main-controls .wpa-apply-row {
+    grid-template-columns: 1fr;
+  }
+
+  .wpa-main-controls .wpa-row-actions:empty {
+    display: none;
+  }
+}
+
+/* V7.6 Community API URL prep */
+.wpa-main-controls .wpa-api-row .wpa-url-input {
+  width: 100%;
+  max-width: 620px;
+  min-height: 38px;
+}
