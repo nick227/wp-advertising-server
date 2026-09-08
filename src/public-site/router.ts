@@ -49,7 +49,8 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const publicSiteAssetsDir = path.resolve(__dirname, '../../public-site/assets');
 
-const CACHE_CONTROL = 'public, max-age=300';
+const devReload = process.env.WPA_DEV_RELOAD === '1' && process.env.NODE_ENV !== 'production';
+const CACHE_CONTROL = devReload ? 'no-store' : 'public, max-age=300';
 
 function formErrorMessage(error: unknown): string {
   if (error instanceof HttpError) return error.message;
@@ -91,7 +92,7 @@ export function createPublicSiteRouter() {
   const router = Router();
 
   router.use('/assets', express.static(publicSiteAssetsDir, {
-    maxAge: '1h',
+    maxAge: devReload ? 0 : '1h',
     fallthrough: false,
   }));
 

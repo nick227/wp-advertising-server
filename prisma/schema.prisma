@@ -151,6 +151,11 @@ model License {
   customerEmail        String?       @db.VarChar(255)
   stripeCustomerId     String?       @db.VarChar(64)
   stripeSubscriptionId String?       @db.VarChar(64)
+  paidThrough          DateTime?
+  graceUntil           DateTime?
+  failureInvoiceId     String? @db.VarChar(255)
+  failureGraceDays      Int?
+  stripeSyncedAt       DateTime?
   notes                String?       @db.VarChar(512)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -240,4 +245,22 @@ model CommunityComment {
   updatedAt DateTime      @updatedAt
 
   @@index([postId, createdAt])
+}
+
+model BillingConfig {
+  id Int @id @default(1)
+  monthlyPriceId String @default("") @db.VarChar(255)
+  annualPriceId String @default("") @db.VarChar(255)
+  monthlyAmount Int @default(2900)
+  annualAmount Int @default(0)
+  monthlyEnabled Boolean @default(false)
+  annualEnabled Boolean @default(false)
+  trialDays Int @default(30)
+  failureGraceDays Int @default(3)
+  updatedAt DateTime @updatedAt
+}
+
+// One transactional lock serializes Stripe snapshots and entitlement writes.
+model BillingSyncLock {
+  id Int @id
 }

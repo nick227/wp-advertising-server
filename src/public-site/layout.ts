@@ -1,3 +1,4 @@
+import { devAssetUrl, devReloadScript } from '../devReload.js';
 export type PageMeta = {
   title: string;
   description: string;
@@ -99,13 +100,14 @@ export function renderPage(meta: PageMeta, body: string, user?: NavUser | null):
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/site.css">
+  <link rel="stylesheet" href="${devAssetUrl('/assets/site.css')}">
+  ${devReloadScript()}
 </head>
 <body>
   ${navHtml(meta.path, user)}
   <main>${body}</main>
   ${footerHtml()}
-  <script src="/assets/site.js" defer></script>
+  <script src="${devAssetUrl('/assets/site.js')}" defer></script>
 </body>
 </html>`;
 }

@@ -1,3 +1,4 @@
+import { getBillingConfig, verifyPlanPrice } from './billingConfigService.js';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { badRequest } from '../lib/errors.js';
@@ -12,11 +13,13 @@ export const checkoutSessionSchema = z.object({
 
 export async function createCheckoutSession(input: z.infer<typeof checkoutSessionSchema>) {
   const stripe = requireStripeCheckout();
-  const priceId = input.plan === 'annual' ? config.stripePriceAnnual : config.stripePriceMonthly;
-  if (!priceId) {
+  const settings = await getBillingConfig();
+  const priceId = settings[`${input.plan}PriceId`];
+  if (!settings[`${input.plan}Enabled`] || !priceId) {
     throw badRequest(`Stripe price is not configured for plan: ${input.plan}`);
   }
 
+  await verifyPlanPrice(settings, input.plan);
   const siteUrl = normalizeSiteUrl(input.siteUrl);
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -31,6 +34,8 @@ export async function createCheckoutSession(input: z.infer<typeof checkoutSessio
     },
     subscription_data: {
       metadata: {
+        application: 'wp-advertising',
+        failureGraceDays: String(settings.failureGraceDays),
         siteUrl,
         plan: input.plan,
       },

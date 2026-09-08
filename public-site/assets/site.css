@@ -52,11 +52,6 @@ img {
   display: block;
 }
 
-.wrap {
-  width: min(100% - 2.5rem, var(--max));
-  margin-inline: auto;
-}
-
 .site-header {
   position: sticky;
   top: 0;
@@ -111,6 +106,10 @@ img {
 .nav-links a:hover,
 .nav-links a[aria-current="page"] {
   color: var(--ink);
+}
+
+.nav-links a.btn-primary {
+  color: white;
 }
 
 .nav-toggle {
@@ -172,6 +171,19 @@ img {
 .btn-ghost:hover {
   color: var(--ink);
   border-color: var(--ink);
+}
+
+.wrap {
+  width: min(100% - 2.5rem, var(--max));
+  margin-inline: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  margin: 0 auto;
 }
 
 .hero {

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { rotationCache } from './rotationCache.js';
-import { TRIAL_DAYS } from './entitlementService.js';
+import { getBillingConfig } from './billingConfigService.js';
 
 export const siteActionSchema = z.object({
   days: z.coerce.number().int().min(1).max(365).optional(),
@@ -27,9 +27,11 @@ const siteSelect = {
   updatedAt: true,
 } as const;
 
-export async function extendTrial(siteId: string, days = TRIAL_DAYS) {
+export async function extendTrial(siteId: string, days?: number) {
   const site = await requireSite(siteId);
   const now = new Date();
+  days = days ?? (await getBillingConfig()).trialDays;
+  if (!days) throw badRequest('Trials are disabled; specify an explicit extension');
   const base = site.networkAccessUntil && site.networkAccessUntil > now
     ? site.networkAccessUntil
     : now;

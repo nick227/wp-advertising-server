@@ -1,3 +1,4 @@
+import { installDevReload } from './devReload.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -10,13 +11,14 @@ import { communityRouter } from './routes/community.js';
 import { adminRouter } from './routes/admin.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { createPublicSiteRouter } from './public-site/router.js';
+import { createPublicSiteRouter, publicSiteAssetsDir } from './public-site/router.js';
 import { entitlementsRouter } from './routes/entitlements.js';
 import { forumRouter } from './routes/forum.js';
 import { stripeWebhookHandler } from './routes/stripeWebhook.js';
 
 export function createApp() {
   const app = express();
+  installDevReload(app, publicSiteAssetsDir);
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -25,8 +27,8 @@ export function createApp() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:'],
-        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https://hatsyshirtsy.com'],
+        scriptSrc: ["'self'", 'https://hatsyshirtsy.com'],
         styleSrc: ["'self'", 'https://fonts.googleapis.com', "'unsafe-inline'"],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         connectSrc: ["'self'"],

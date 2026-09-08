@@ -1,7 +1,6 @@
 import type { RequestHandler } from 'express';
 import { config } from '../config.js';
 import { HttpError } from '../lib/errors.js';
-import { claimStripeEvent, releaseStripeEvent } from '../services/billingService.js';
 import { dispatchStripeEvent } from '../services/stripeEventHandlers.js';
 import { requireStripeWebhook } from '../services/stripeClient.js';
 
@@ -27,20 +26,8 @@ export const stripeWebhookHandler: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    const claimed = await claimStripeEvent(event.id, event.type);
-    if (!claimed) {
-      res.json({ ok: true, duplicate: true });
-      return;
-    }
-
-    try {
-      await dispatchStripeEvent(event);
-    } catch (error) {
-      await releaseStripeEvent(event.id);
-      throw error;
-    }
-
-    res.json({ ok: true, received: true });
+    const result = await dispatchStripeEvent(event);
+    res.json({ ok: true, received: true, ...result });
   } catch (error) {
     if (error instanceof HttpError) {
       res.status(error.status).json({ error: { code: error.code, message: error.message } });

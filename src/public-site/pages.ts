@@ -1,19 +1,22 @@
 export function homePage(): string {
   return `
-  <section class="hero">
-    <div class="wrap">
+  <section class="hero row wrap">
+    <div class="">
       <p class="brand-mark">WP Advertising</p>
-      <h1>A WordPress plugin for ads on your site.</h1>
+      <h1>Advertise your WooCommerce products.</h1>
       <p class="hero-lead">Create house ads, promote WooCommerce products, place them with embeds or shortcodes, and optionally track impressions and clicks. Download it, upload it in WordPress, and start.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="/plugin/download">Download the plugin</a>
         <a class="btn btn-secondary" href="#pricing">See pricing</a>
       </div>
     </div>
+    <div class="hero-image">
+      <img src="/assets/screenshot.png" alt="A WordPress plugin for ads on your site.">
+    </div>
   </section>
 
-  <section class="section" id="what-it-does">
-    <div class="wrap">
+  <section class="section row wrap" id="what-it-does">
+    <div class="">
       <h2>What the plugin does</h2>
       <p class="section-lead">After you install it, you can do these things in WordPress:</p>
       <ul class="feature-list">
@@ -24,6 +27,9 @@ export function homePage(): string {
         <li>Place ads with a shortcode or an embed snippet</li>
         <li>Turn on local tracking for impressions and clicks, or leave tracking off</li>
       </ul>
+    </div>
+    <div class="example-ad">
+      <div class="wp-advertising-zone" data-zone="house-ad" data-wpa-track="1"></div><script async src="https://hatsyshirtsy.com/wp-admin/admin-post.php?action=wp_advertising_embed_js&ver=8.3.0"></script>
     </div>
   </section>
 

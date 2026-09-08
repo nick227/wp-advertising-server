@@ -12,6 +12,8 @@ export function getStripe(): Stripe {
     client = new Stripe(config.stripeSecretKey, {
       apiVersion: '2025-02-24.acacia',
       typescript: true,
+      timeout: 10000,
+      maxNetworkRetries: 0,
     });
   }
   return client;

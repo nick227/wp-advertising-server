@@ -19,7 +19,7 @@ export async function activateLicense(input: z.infer<typeof activateLicenseSchem
   const license = await prisma.license.findUnique({ where: { licenseKey } });
   if (!license) throw notFound('License not found');
   if (license.status !== 'ACTIVE') throw forbidden('License is not active');
-  if (license.expiresAt && license.expiresAt.getTime() <= Date.now()) {
+  if (!license.expiresAt || license.expiresAt.getTime() <= Date.now()) {
     throw forbidden('License has expired');
   }
 
@@ -37,7 +37,7 @@ export async function activateLicense(input: z.infer<typeof activateLicenseSchem
   }
 
   const now = new Date();
-  const accessUntil = license.expiresAt ?? new Date(now.getTime() + 365 * 86400000);
+  const accessUntil = license.expiresAt;
 
   await prisma.licenseActivation.upsert({
     where: { licenseId_siteId: { licenseId: license.id, siteId: site.id } },

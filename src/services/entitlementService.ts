@@ -1,10 +1,10 @@
+import { getBillingConfig } from './billingConfigService.js';
 import type { CommunitySite, NetworkStatus } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { forbidden, notFound } from '../lib/errors.js';
 import { rotationCache } from './rotationCache.js';
 
-export const TRIAL_DAYS = 30;
 export const ENTITLEMENT_SWEEP_MS = 10 * 60 * 1000;
 
 export const entitlementAuthSchema = z.object({
@@ -76,7 +76,7 @@ export function entitlementPayload(site: CommunitySite, now = new Date()) {
     networkAccessUntil: site.networkAccessUntil?.toISOString() ?? null,
     eligible: isSiteNetworkEligible(site, now),
     rules: rulesForSite(site, now),
-    nextCheckSuggestedSec: 24 * 60 * 60,
+    nextCheckSuggestedSec: 60 * 60,
   };
 }
 
@@ -110,7 +110,9 @@ export async function startTrial(input: z.infer<typeof entitlementAuthSchema>) {
     throw forbidden('Trial already used for this site. Activate Pro to continue network access.');
   }
 
-  const accessUntil = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+  const { trialDays } = await getBillingConfig();
+  if (!trialDays) throw forbidden('New trials are currently disabled');
+  const accessUntil = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
   const updated = await prisma.communitySite.update({
     where: { id: site.id },
     data: {
