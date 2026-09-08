@@ -26,6 +26,7 @@ export function renderPage(title: string, body: string, notice?: string): string
       <a href="/sites">Sites</a>
       <a href="/ads">Ads</a>
       <a href="/licenses">Licenses</a>
+      <a href="/billing">Plans &amp; Trials</a>
       <a href="/community">Community</a>
       <a href="/system">System</a>
       <form method="post" action="/logout" class="inline"><button type="submit">Log out</button></form>

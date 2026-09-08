@@ -88,7 +88,6 @@ async function markExpiredIfNeeded(site: CommunitySite, now = new Date()): Promi
     where: { id: site.id },
     data: {
       networkStatus: 'EXPIRED',
-      optedIn: false,
     },
   });
 }
@@ -164,7 +163,6 @@ export async function expireDueEntitlements() {
     },
     data: {
       networkStatus: 'EXPIRED',
-      optedIn: false,
     },
   });
   if (result.count > 0) {

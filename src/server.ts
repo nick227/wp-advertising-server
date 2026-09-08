@@ -1,3 +1,4 @@
+import { initializeBillingConfig } from './services/billingConfigService.js';
 import { createServer } from 'node:http';
 import { createApp } from './app.js';
 import { config, configSummary, validateConfig } from './config.js';
@@ -31,6 +32,8 @@ async function probeDatabase(retries = 3, delayMs = 2000) {
 }
 
 await probeDatabase();
+try { await initializeBillingConfig(); }
+catch (error) { console.error('Billing configuration import failed; configure Plans & Trials in admin', error); }
 
 try {
   const seed = await seedForumIfEmpty();
@@ -44,6 +47,7 @@ const server = createServer(app);
 let shuttingDown = false;
 
 eventQueue.start();
+rotationCache.start();
 entitlementSweeper.start();
 if (config.rotationCacheWarmOnStart) {
   rotationCache.warm().catch((error) => console.error('initial rotation cache warm failed', error));
@@ -67,6 +71,7 @@ async function shutdown(signal: string) {
   try {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     eventQueue.stop();
+    rotationCache.stop();
     entitlementSweeper.stop();
     await eventQueue.flush().catch((error) => console.error('event flush failed during shutdown', error));
     await prisma.$disconnect().catch((error) => console.error('database disconnect failed during shutdown', error));

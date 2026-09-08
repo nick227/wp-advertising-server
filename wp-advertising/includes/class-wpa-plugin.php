@@ -34,6 +34,7 @@ final class WPA_Plugin {
         add_action('current_screen', [$this->admin, 'suppress_unrelated_admin_notices']);
         add_action('admin_enqueue_scripts', [$this->admin, 'enqueue_assets']);
         add_action('admin_init', [$this, 'maybe_refresh_entitlement']);
+        add_action('wp_advertising_refresh_entitlement', [$this, 'scheduled_refresh_entitlement']);
         add_action('admin_post_wp_advertising_save_ad', [$this->admin, 'handle_save_ad']);
         add_action('admin_post_wp_advertising_delete_ad', [$this->admin, 'handle_delete_ad']);
         add_action('admin_post_wp_advertising_export_clicks', [$this->admin, 'handle_export_click_report']);
@@ -57,6 +58,12 @@ final class WPA_Plugin {
         add_action('wp_ajax_wp_advertising_preview_random', [$this->public, 'ajax_preview_random']);
         add_action('wp_ajax_wp_advertising_search_products', [$this->public, 'ajax_search_products']);
         add_shortcode('wp_advertising_community_ad', [$this->public, 'shortcode_community_ad']);
+    }
+
+    public function scheduled_refresh_entitlement() {
+        if (in_array($this->license->status(), [WPA_License::STATUS_ACTIVE, WPA_License::STATUS_TRIAL, WPA_License::STATUS_GRACE], true)) {
+            $this->license->maybe_validate(false);
+        }
     }
 
     public function maybe_refresh_entitlement() {

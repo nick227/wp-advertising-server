@@ -45,25 +45,42 @@ const state: CacheState = {
   lastError: null,
 };
 
+let refreshTimer: NodeJS.Timeout | undefined;
+
 export const rotationCache = {
+  start() {
+    if (refreshTimer) return;
+    refreshTimer = setInterval(() => {
+      void this.warm().catch((error) => console.error('periodic rotation refresh failed', error));
+    }, Math.max(1000, config.rotationCacheTtlMs));
+    refreshTimer.unref();
+  },
+  stop() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  },
   async warm() {
     await refreshRotationCache({ allowStale: false });
   },
-  async invalidate() {
+  async invalidate(siteIds: string[] = []) {
     state.refreshedAt = 0;
-    refreshRotationCache({ allowStale: true }).catch((error) => {
-      console.error('rotation cache refresh failed after invalidation', error);
-    });
+    // Wait for any pre-commit cache read before evicting affected entitlements.
+    if (state.loading) await state.loading.catch(() => undefined);
+    if (siteIds.length) {
+      const affected = new Set(siteIds);
+      state.ads = state.ads.filter((ad) => !affected.has(ad.siteId));
+      state.adById = new Map(state.ads.map((ad) => [ad.adId, ad]));
+      for (const [domain, site] of state.siteByDomain) {
+        if (affected.has(site.id)) state.siteByDomain.delete(domain);
+      }
+    }
+    await refreshRotationCache({ allowStale: false, force: true });
   },
   async rebuildNow() {
     await refreshRotationCache({ allowStale: false, force: true });
     return this.status();
   },
   async getSnapshot() {
-    const expired = Date.now() - state.refreshedAt > config.rotationCacheTtlMs;
-    if (expired) {
-      await refreshRotationCache({ allowStale: state.ads.length > 0 });
-    }
     return {
       ads: state.ads,
       siteByDomain: state.siteByDomain,

@@ -8,3 +8,9 @@ process.env.ADMIN_TOKEN = 'test-admin-token-static-value-for-ci';
 process.env.EVENT_TOKEN_SECRET = 'test-event-secret-static-value-for-ci';
 process.env.PUBLIC_BASE_URL = 'http://localhost:4100/v1';
 process.env.ROTATION_CACHE_WARM_ON_START = 'false';
+
+// Tests must never inherit live payment credentials from the developer's .env.
+process.env.STRIPE_SECRET_KEY = '';
+process.env.STRIPE_WEBHOOK_SECRET = '';
+process.env.STRIPE_PRICE_MONTHLY = '';
+process.env.STRIPE_PRICE_ANNUAL = '';

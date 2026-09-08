@@ -83,7 +83,7 @@ async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: st
     license = await db.license.update({ where: { id: license.id }, data: {
       ...window,
       // Billing must not undo an explicit license revocation/suspension.
-      status: ['REVOKED', 'SUSPENDED'].includes(license.status) ? license.status : window.status,
+      status: license.status === 'REVOKED' ? license.status : window.status,
       stripeCustomerId: stripeRefId(subscription.customer), failureGraceDays: graceDays, stripeSyncedAt: now,
     } });
   }
@@ -102,19 +102,23 @@ async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: st
       await db.communitySite.update({ where: { id: site.id }, data: { networkStatus: 'EXPIRED', networkAccessUntil: now } });
     }
   }
-  return { licenseId: license.id, status: license.status, expiresAt: license.expiresAt };
+  return { licenseId: license.id, status: license.status, expiresAt: license.expiresAt, affectedSiteIds: activations.map((activation) => activation.siteId) };
 }
 
 export async function synchronizeStripe(subscriptionId: string, event?: Stripe.Event) {
   const result = await prisma.$transaction(async (db) => {
     await db.$queryRaw`SELECT id FROM BillingSyncLock WHERE id = 1 FOR UPDATE`;
-    if (event && await db.stripeEvent.findUnique({ where: { id: event.id } })) return { duplicate: true };
+    if (event && await db.stripeEvent.findUnique({ where: { id: event.id } })) {
+      const license = await db.license.findFirst({ where: { stripeSubscriptionId: subscriptionId } });
+      const activations = license ? await db.licenseActivation.findMany({ where: { licenseId: license.id, deactivatedAt: null } }) : [];
+      return { duplicate: true, affectedSiteIds: activations.map((activation) => activation.siteId) };
+    }
     const synced = await syncSubscription(db, subscriptionId);
     // This commits atomically with all license and site changes; errors roll it all back.
     if (event) await db.stripeEvent.create({ data: { id: event.id, type: event.type } });
     return synced;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 10000, timeout: 45000 });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate('affectedSiteIds' in result ? result.affectedSiteIds : []);
   return result;
 }
 

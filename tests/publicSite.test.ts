@@ -3,6 +3,7 @@ import request from 'supertest';
 
 vi.mock('../src/lib/prisma.js', () => ({
   prisma: {
+    billingConfig: { findUnique: vi.fn().mockResolvedValue(null) },
     $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]),
     communitySite: {
       findMany: vi.fn().mockResolvedValue([]),

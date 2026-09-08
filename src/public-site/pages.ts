@@ -1,10 +1,13 @@
-export function homePage(): string {
+import { planChoices, type PlansConfig } from '../services/billingConfigService.js';
+
+export function homePage(settings: PlansConfig): string {
+  const plans = planChoices(settings);
   return `
   <section class="hero row wrap">
     <div class="">
       <p class="brand-mark">WP Advertising</p>
       <h1>Advertise your WooCommerce products.</h1>
-      <p class="hero-lead">Create house ads, promote WooCommerce products, place them with embeds or shortcodes, and optionally track impressions and clicks. Download it, upload it in WordPress, and start.</p>
+      <p class="hero-lead">Build product ads in WordPress. Copy the embed and place them anywhere — your site, a blog, a partner page. Premium: your ads run on other WooCommerce stores too.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="/plugin/download">Download the plugin</a>
         <a class="btn btn-secondary" href="#pricing">See pricing</a>
@@ -18,14 +21,13 @@ export function homePage(): string {
   <section class="section row wrap" id="what-it-does">
     <div class="">
       <h2>What the plugin does</h2>
-      <p class="section-lead">After you install it, you can do these things in WordPress:</p>
+      <p class="section-lead">Build an ad in WordPress. Embed it anywhere.</p>
       <ul class="feature-list">
-        <li>Create custom house ads with a label, headline, body, image, and button</li>
-        <li>Promote specific WooCommerce products, or rotate products from your catalog</li>
-        <li>Pick a visual theme for each ad</li>
-        <li>Preview ads in the admin before you publish them</li>
-        <li>Place ads with a shortcode or an embed snippet</li>
-        <li>Turn on local tracking for impressions and clicks, or leave tracking off</li>
+        <li>Create a product ad in your WordPress admin</li>
+        <li>Promote one product or rotate through your catalog</li>
+        <li>Copy the embed and place it on any page, site, or newsletter</li>
+        <li>Pick a theme and preview before publishing</li>
+        <li>Optional click and impression tracking</li>
       </ul>
     </div>
     <div class="example-ad">
@@ -50,47 +52,48 @@ export function homePage(): string {
   <section class="section" id="pricing" style="padding-top:0">
     <div class="wrap">
       <h2>Pricing</h2>
-      <p class="section-lead">Two options. No account is required to use Free.</p>
+      <p class="section-lead">Start free. Upgrade to reach other stores.</p>
       <div class="price-grid price-grid-two">
         <article class="price-card">
           <h3>Free</h3>
           <p class="amount">$0</p>
           <ul>
-            <li>Ads on your own WordPress site</li>
-            <li>Themes, shortcodes, and embeds on your domain</li>
-            <li>Optional local tracking</li>
-            <li>No credit card</li>
+            <li>Build product ads in WordPress</li>
+            <li>Embed them anywhere</li>
+            <li>Optional tracking</li>
+            <li>No account required</li>
           </ul>
           <a class="btn btn-secondary" href="/plugin/download">Download</a>
         </article>
         <article class="price-card featured">
           <h3>Premium</h3>
-          <p class="amount">$29/mo</p>
+          <p class="amount">${plans.map((p) => p.label).join(' or ') || 'Pricing coming soon'}</p>
           <ul>
             <li>Everything in Free</li>
-            <li>Optional shared community ads with other sites</li>
-            <li>Try Premium for 30 days — no credit card</li>
-            <li>After the trial, pay through Checkout and activate your license in WordPress</li>
+            <li>Join the Community Ad Network</li>
+            <li>Your ad runs on other WooCommerce stores</li>
+            ${settings.trialDays ? `<li>${settings.trialDays}-day free trial — no credit card</li>` : ''}
           </ul>
           <a class="btn btn-primary" href="/checkout">Get Premium</a>
         </article>
       </div>
-      <p class="metric-note" style="margin-top:1rem">The 30-day trial starts in the plugin when you turn on Premium features. You do not need a card to start the trial. Annual billing is available at checkout.</p>
+      <p class="metric-note" style="margin-top:1rem">${settings.annualEnabled ? 'Annual billing available at checkout.' : ''}</p>
     </div>
   </section>
 
-  <section class="section" id="community-ads" style="padding-top:0">
-    <div class="wrap">
-      <h2>Optional: share ads with other sites</h2>
-      <p class="section-lead">Premium can connect your site so you show an ad from another opted-in site and share one of yours in return. Free installs stay on your site only.</p>
+  <section class="section wrap row" id="community-ad-network" style="padding-top:0">
+    <div class="">
+      <h2>WooCommerce Community Ad Network</h2>
+      <p class="section-lead">Connects your store to a rotating ad exchange with other WooCommerce sites. Your ad runs on their stores. Their ad runs on yours. No negotiations — it rotates automatically.</p>
+      <ul class="feature-list">
+        <li>Broadcast your products to shoppers on other participating stores</li>
+        <li>Support fellow independent WooCommerce store owners</li>
+        <li>Ads rotate on a fair, equal-exchange basis</li>
+        <li>Free installs stay on your site only — the network is Premium</li>
+      </ul>
     </div>
-  </section>
-
-  <section class="section" style="padding-top:0">
-    <div class="wrap">
-      <h2>Community</h2>
-      <p class="section-lead">A discussion space for people using the plugin. Create a free account with email and password to post.</p>
-      <a class="btn btn-secondary" href="/community">Open Community</a>
+    <div class="">
+      <img src="/assets/wooCommerce.webp" />
     </div>
   </section>
 
@@ -107,13 +110,14 @@ export function homePage(): string {
   </section>`;
 }
 
-export function checkoutPage(options?: { configured?: boolean; canceled?: boolean }): string {
-  const configured = options?.configured ?? false;
+export function checkoutPage(settings: PlansConfig, options?: { configured?: boolean; canceled?: boolean }): string {
+  const plans = planChoices(settings);
+  const configured = Boolean(options?.configured && plans.length);
   const notice = options?.canceled
     ? '<div class="notice">Checkout was canceled. You can restart below whenever you are ready.</div>'
     : configured
       ? '<div class="notice">You will complete payment on Stripe. Premium activates after payment is confirmed.</div>'
-      : '<div class="notice">Premium checkout is not configured on this environment yet. You can still download Free and try Premium features for 30 days from the plugin.</div>';
+      : `<div class="notice">Premium checkout is not available yet. You can still download Free.${settings.trialDays ? ` Try Premium for ${settings.trialDays} days from the plugin.` : ''}</div>`;
 
   return `
   <section class="page-hero"><div class="wrap">
@@ -132,8 +136,7 @@ export function checkoutPage(options?: { configured?: boolean; canceled?: boolea
       </label>
       <label>Plan
         <select name="plan" style="display:block;width:100%;margin-top:0.35rem;padding:0.65rem;font:inherit">
-          <option value="monthly">Premium monthly</option>
-          <option value="annual">Premium annual</option>
+          ${plans.map((p) => `<option value="${p.plan}">Premium ${p.label}</option>`).join('')}
         </select>
       </label>
       <button class="btn btn-primary" type="submit"${configured ? '' : ' disabled'}>Continue to Stripe</button>
@@ -181,6 +184,52 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+export type ProfileLicense = {
+  licenseKey: string;
+  status: string;
+  paidThrough: Date | null;
+  activatedSites: string[];
+};
+
+export function profilePage(
+  user: { displayName: string; email: string },
+  licenses: ProfileLicense[],
+): string {
+  const licenseContent = licenses.length === 0
+    ? '<p style="color:var(--ink-muted)">No licenses found for this account.</p>'
+    : licenses.map(l => {
+        const masked = `<code>••••${escapeHtml(l.licenseKey.slice(-8))}</code>`;
+        const paid = l.paidThrough
+          ? `<span style="color:var(--ink-muted);font-size:0.9rem">Paid through ${new Date(l.paidThrough).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>`
+          : '';
+        const sites = l.activatedSites.length
+          ? `<p style="margin:0.5rem 0 0;font-size:0.875rem;color:var(--ink-muted)">${l.activatedSites.map(s => escapeHtml(s)).join(', ')}</p>`
+          : '';
+        return `<div style="padding:1rem;border:1px solid var(--line);border-radius:0.5rem;margin-bottom:0.75rem">
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            ${masked}
+            <strong>${escapeHtml(l.status)}</strong>
+            ${paid}
+          </div>${sites}
+        </div>`;
+      }).join('');
+
+  return `
+  <section class="page-hero"><div class="wrap">
+    <p class="brand-mark">Account</p>
+    <h1>${escapeHtml(user.displayName)}</h1>
+    <p class="hero-lead">${escapeHtml(user.email)}</p>
+  </div></section>
+  <section class="section" style="padding-top:0"><div class="wrap prose">
+    <h2>Licenses</h2>
+    ${licenseContent}
+    <h2 style="margin-top:2rem">Sign out</h2>
+    <form method="post" action="/community/logout" style="margin:0">
+      <button class="btn btn-secondary" type="submit">Log out</button>
+    </form>
+  </div></section>`;
 }
 
 export function legalPage(title: string, paragraphs: string[]): string {

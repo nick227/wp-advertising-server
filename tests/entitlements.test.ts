@@ -3,6 +3,7 @@ import request from 'supertest';
 
 const { p, rc } = vi.hoisted(() => {
   const p = {
+    billingConfig: { findUnique: vi.fn().mockResolvedValue(null) },
     communitySite: {
       findUnique: vi.fn(),
       update: vi.fn(),

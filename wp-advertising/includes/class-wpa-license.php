@@ -43,7 +43,7 @@ final class WPA_License {
             return $this->is_network_eligible();
         }
         $rules = $this->rules();
-        return !empty($rules[$rule]);
+        return $this->is_network_eligible() && !empty($rules[$rule]);
     }
 
     public function is_network_eligible() {
@@ -52,7 +52,7 @@ final class WPA_License {
             return false;
         }
         $until = $this->network_access_until();
-        if ($until > 0 && $until < time() && $status !== self::STATUS_GRACE) {
+        if (!$until || $until <= time()) {
             return false;
         }
         return true;
@@ -182,7 +182,8 @@ final class WPA_License {
                 update_option(WPA_LICENSE_LAST_ERROR_OPTION, $this->repo->community_api_error_message($result), false);
                 return false;
             }
-            update_option(WPA_LICENSE_LAST_ERROR_OPTION, $this->repo->community_api_error_message($result), false);
+            $this->clear_entitlement(self::STATUS_EXPIRED, $this->repo->community_api_error_message($result));
+            update_option(WPA_LICENSE_NEXT_CHECK_OPTION, time() + HOUR_IN_SECONDS, false);
             return false;
         }
 

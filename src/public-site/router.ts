@@ -1,3 +1,4 @@
+import { getBillingConfig } from '../services/billingConfigService.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { Router, type RequestHandler } from 'express';
@@ -29,6 +30,7 @@ import {
   verifySessionToken,
 } from '../services/communitySession.js';
 import { HttpError } from '../lib/errors.js';
+import { prisma } from '../lib/prisma.js';
 import {
   communityForumIndex,
   communityForumPost,
@@ -43,6 +45,7 @@ import {
   contactPage,
   homePage,
   legalPage,
+  profilePage,
   statusPage,
 } from './pages.js';
 
@@ -58,10 +61,16 @@ function formErrorMessage(error: unknown): string {
   return 'Something went wrong';
 }
 
-function html(meta: { title: string; description: string; path: string }, body: string): RequestHandler {
-  return (_req, res) => {
-    res.setHeader('Cache-Control', CACHE_CONTROL);
-    res.type('html').send(renderPage(meta, body));
+function html(meta: { title: string; description: string; path: string }, body: string | (() => Promise<string>)): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      const [resolvedBody, user] = await Promise.all([
+        typeof body === 'function' ? body() : Promise.resolve(body),
+        currentUser(req),
+      ]);
+      res.setHeader('Cache-Control', typeof body === 'function' || user ? 'no-store' : CACHE_CONTROL);
+      res.type('html').send(renderPage(meta, resolvedBody, user));
+    } catch (error) { next(error); }
   };
 }
 
@@ -78,7 +87,7 @@ async function currentUser(req: express.Request): Promise<NavUser | null> {
   if (!session) return null;
   const user = await getCommunityUserById(session.userId);
   if (!user) return null;
-  return { displayName: user.displayName };
+  return { displayName: user.displayName, email: user.email };
 }
 
 async function currentUserId(req: express.Request): Promise<string | null> {
@@ -99,10 +108,10 @@ export function createPublicSiteRouter() {
   router.get('/', html(
     {
       title: 'WP Advertising — WordPress advertising plugin',
-      description: 'Create house ads and WooCommerce product ads on your WordPress site. Free locally. Premium available with a 30-day trial.',
+      description: 'Create house ads and WooCommerce product ads on your WordPress site. Free locally. See current Premium plans and trial options.',
       path: '/',
     },
-    homePage(),
+    async () => homePage(await getBillingConfig()),
   ));
 
   router.get('/plugin', redirectHome());
@@ -119,15 +128,18 @@ export function createPublicSiteRouter() {
     res.redirect(302, config.pluginDownloadUrl);
   });
 
-  router.get('/checkout', (req, res) => {
+  router.get('/checkout', async (req, res, next) => {
+    try {
+    const settings = await getBillingConfig();
     res.setHeader('Cache-Control', 'no-store');
     res.type('html').send(renderPage(
       { title: 'Checkout — WP Advertising', description: 'Get WP Advertising Premium via Stripe Checkout.', path: '/checkout' },
-      checkoutPage({
+      checkoutPage(settings, {
         configured: isStripeCheckoutConfigured(),
         canceled: req.query.canceled === '1',
       }),
     ));
+    } catch (error) { next(error); }
   });
 
   router.get('/checkout/success', async (req, res, next) => {
@@ -328,6 +340,36 @@ export function createPublicSiteRouter() {
     }
   });
 
+  router.get('/profile', async (req, res, next) => {
+    try {
+      const token = readSessionCookie(req);
+      if (!token) { res.redirect(302, '/community/login'); return; }
+      const session = verifySessionToken(token);
+      if (!session) { res.redirect(302, '/community/login'); return; }
+      const dbUser = await getCommunityUserById(session.userId);
+      if (!dbUser) { res.redirect(302, '/community/login'); return; }
+      const licenses = await prisma.license.findMany({
+        where: { customerEmail: dbUser.email },
+        include: { activations: { where: { deactivatedAt: null } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const navUser: NavUser = { displayName: dbUser.displayName, email: dbUser.email };
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage(
+        { title: 'Profile — WP Advertising', description: 'Your account and licenses.', path: '/profile' },
+        profilePage(navUser, licenses.map(l => ({
+          licenseKey: l.licenseKey,
+          status: l.status,
+          paidThrough: l.paidThrough,
+          activatedSites: l.activations.map(a => a.domainSnapshot),
+        }))),
+        navUser,
+      ));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get('/privacy', html(
     { title: 'Privacy — WP Advertising', description: 'Privacy policy for WP Advertising plugin and community services.', path: '/privacy' },
     legalPage('Privacy Policy', [
@@ -358,7 +400,7 @@ export function createPublicSiteRouter() {
     { title: 'Refunds — WP Advertising', description: 'Refund policy for WP Advertising Premium.', path: '/refunds' },
     legalPage('Refunds', [
       'Premium subscriptions are billed through Stripe. Refund requests are evaluated against the published policy at launch.',
-      'The 30-day Premium trial is free and does not require payment.',
+      'Available Premium trials start in the plugin and do not require payment; see current trial terms on the home page.',
     ]),
   ));
 

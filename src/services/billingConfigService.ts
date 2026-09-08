@@ -60,3 +60,19 @@ export function planChoices(settings: PlansConfig) {
     label: `${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(settings[`${plan}Amount`] / 100)}/${plan === 'monthly' ? 'month' : 'year'}`,
   }));
 }
+
+// Bootstrap existing deployments from Stripe once; subsequent reads use SQL only.
+export async function initializeBillingConfig() {
+  if (await prisma.billingConfig.findUnique({ where: { id: 1 } })) return;
+  const settings = { ...defaultBillingConfig };
+  for (const plan of ['monthly', 'annual'] as const) {
+    const id = plan === 'monthly' ? config.stripePriceMonthly : config.stripePriceAnnual;
+    if (!id) continue;
+    const price = await getStripe().prices.retrieve(id);
+    settings[`${plan}PriceId`] = id;
+    settings[`${plan}Amount`] = price.unit_amount ?? 0;
+    settings[`${plan}Enabled`] = true;
+    await verifyPlanPrice(settings, plan);
+  }
+  await prisma.billingConfig.upsert({ where: { id: 1 }, create: { id: 1, ...settings }, update: {} });
+}

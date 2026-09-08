@@ -297,7 +297,6 @@ img {
 
 .price-grid-two {
   grid-template-columns: repeat(2, 1fr);
-  max-width: 44rem;
 }
 
 .price-card {
@@ -346,10 +345,6 @@ img {
   max-width: 16ch;
 }
 
-.prose {
-  max-width: 42rem;
-}
-
 .prose h2 {
   font-family: var(--font-display);
   letter-spacing: -0.03em;
@@ -360,22 +355,25 @@ img {
   color: var(--ink-muted);
 }
 
-.nav-user {
+.nav-avatar {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  color: var(--ink-muted);
-  font-size: 0.92rem;
-}
-
-.nav-logout {
-  margin: 0;
-  display: inline;
-}
-
-.nav-logout .btn {
-  padding: 0.35rem 0.7rem;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: transparent;
+  color: black;
   font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  line-height: 1;
+  flex-shrink: 0;
+  outline: 1px solid black;
+}
+
+.nav-avatar:hover {
+  opacity: 0.8;
 }
 
 .site-footer {

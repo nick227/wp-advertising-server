@@ -30,7 +30,9 @@ delete_option('wp_advertising_license_last_error');
 delete_option('wp_advertising_license_key');
 
 if (defined('WPA_REMOVE_DATA_ON_UNINSTALL') && WPA_REMOVE_DATA_ON_UNINSTALL) {
-    global $wpdb;
+    wp_clear_scheduled_hook('wp_advertising_refresh_entitlement');
+
+global $wpdb;
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}wp_advertising_events");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}wp_advertising_ads");
 }

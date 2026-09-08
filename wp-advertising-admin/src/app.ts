@@ -1,3 +1,4 @@
+import { billingBody, parseBillingForm, type PlansConfig, type Reconciliation } from './billing.js';
 import { installDevReload } from './devReload.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +88,43 @@ export function createApp() {
   });
 
   app.use(requireSession);
+
+  app.get('/billing', async (req, res) => {
+    try {
+      const { settings } = await adFetch<{ settings: PlansConfig }>(req.adminToken!, '/admin/billing/config');
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage('Plans & Trials', billingBody(settings), takeFlash(req, res)));
+    } catch (error) { handleAdError(res, error, '/'); }
+  });
+
+  app.post('/billing/config', async (req, res) => {
+    try {
+      await adFetch(req.adminToken!, '/admin/billing/config', { method: 'PUT', body: JSON.stringify(parseBillingForm(req.body)) });
+      flash(res, 'Plans and trial settings saved.');
+      res.redirect(303, '/billing');
+    } catch (error) {
+      if (error instanceof AdServerError && error.status === 401) { handleAdError(res, error, '/billing'); return; }
+      const message = error instanceof AdServerError
+        ? (error.body as { error?: { message?: string } })?.error?.message || `Server rejected settings (${error.status})`
+        : error instanceof Error ? error.message : 'Could not save settings';
+      flash(res, message);
+      res.redirect(303, '/billing');
+    }
+  });
+
+  app.post('/billing/reconcile', async (req, res) => {
+    try {
+      const subscriptionId = String(req.body.subscriptionId || '').trim() || undefined;
+      const startingAfter = String(req.body.startingAfter || '').trim() || undefined;
+      const result = await adFetch<Reconciliation>(req.adminToken!, '/admin/billing/reconcile', {
+        method: 'POST', body: JSON.stringify({ subscriptionId, startingAfter }),
+      });
+      const { settings } = await adFetch<{ settings: PlansConfig }>(req.adminToken!, '/admin/billing/config');
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(renderPage('Plans & Trials', billingBody(settings, result)));
+    } catch (error) { handleAdError(res, error, '/billing'); }
+  });
+
 
   app.get('/', async (req, res) => {
     try {

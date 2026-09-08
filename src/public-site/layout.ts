@@ -7,6 +7,7 @@ export type PageMeta = {
 
 export type NavUser = {
   displayName: string;
+  email: string;
 };
 
 const NAV = [
@@ -31,10 +32,7 @@ function navHtml(currentPath: string, user?: NavUser | null): string {
   }).join('');
 
   const account = user
-    ? `<li class="nav-user"><span>${esc(user.displayName)}</span>
-        <form method="post" action="/community/logout" class="nav-logout">
-          <button class="btn btn-ghost" type="submit">Log out</button>
-        </form></li>`
+    ? `<li><a href="/profile" class="nav-avatar" title="${esc(user.displayName)}" aria-label="Your profile">${esc(user.displayName.charAt(0).toUpperCase())}</a></li>`
     : '';
 
   return `
@@ -80,8 +78,7 @@ function footerHtml(): string {
         <ul>
           <li><a href="/privacy">Privacy</a></li>
           <li><a href="/terms">Terms</a></li>
-          <li><a href="/community-standards">Community standards</a></li>
-          <li><a href="/refunds">Refunds</a></li>
+          <li><a href="/community-standards">Standards</a></li>
         </ul>
       </div>
     </div>

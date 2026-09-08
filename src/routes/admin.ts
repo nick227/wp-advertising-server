@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import { getBillingConfig, saveBillingConfig } from '../services/billingConfigService.js';
+import { reconcileStripe } from '../services/stripeEventHandlers.js';
 import { Router } from 'express';
 import { rotationCache } from '../services/rotationCache.js';
 import { eventQueue } from '../services/eventQueue.js';
@@ -35,6 +38,28 @@ import { forbidden } from '../lib/errors.js';
 export const adminRouter = Router();
 
 adminRouter.use('/admin', adminAuth, rateLimit('admin', config.rateLimitAdminMax));
+
+adminRouter.get('/admin/billing/config', async (req, res, next) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true, settings: await getBillingConfig() });
+  } catch (error) { next(error); }
+});
+
+adminRouter.put('/admin/billing/config', async (req, res, next) => {
+  try { res.json({ ok: true, settings: await saveBillingConfig(req.body) }); }
+  catch (error) { next(error); }
+});
+
+adminRouter.post('/admin/billing/reconcile', async (req, res, next) => {
+  try {
+    const input = z.object({
+      subscriptionId: z.string().regex(/^sub_[a-zA-Z0-9_]+$/).optional(),
+      startingAfter: z.string().regex(/^sub_[a-zA-Z0-9_]+$/).optional(),
+    }).strict().parse(req.body ?? {});
+    res.json({ ok: true, ...await reconcileStripe(input) });
+  } catch (error) { next(error); }
+});
 
 adminRouter.get('/admin/overview', async (req, res, next) => {
   try {

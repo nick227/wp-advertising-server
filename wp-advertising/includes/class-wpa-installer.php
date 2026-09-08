@@ -10,11 +10,15 @@ final class WPA_Installer {
         self::install_tables();
         self::ensure_options();
         self::schedule_retention_cleanup();
+        if (!wp_next_scheduled('wp_advertising_refresh_entitlement')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'wp_advertising_refresh_entitlement');
+        }
         self::seed_default_house_ad();
     }
 
     public static function deactivate() {
         self::clear_retention_cleanup();
+        wp_clear_scheduled_hook('wp_advertising_refresh_entitlement');
     }
 
     public static function maybe_upgrade() {
@@ -23,6 +27,9 @@ final class WPA_Installer {
         }
         self::ensure_options();
         self::schedule_retention_cleanup();
+        if (!wp_next_scheduled('wp_advertising_refresh_entitlement')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'wp_advertising_refresh_entitlement');
+        }
         self::seed_default_house_ad();
     }
 
