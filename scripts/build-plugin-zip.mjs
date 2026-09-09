@@ -58,8 +58,8 @@ function buildZip() {
 
   // Add the wp-advertising directory to the zip
   zip.addLocalFolder(pluginDir, 'wp-advertising', (filename) => {
-    const base = path.basename(filename);
-    if (EXCLUDED_NAMES.has(base) || base.endsWith('.zip')) {
+    const parts = filename.split(/[/\\]/);
+    if (parts.some(p => EXCLUDED_NAMES.has(p) || p.endsWith('.zip'))) {
       return false;
     }
     return true;

@@ -16,6 +16,7 @@ vi.mock('../src/services/rotationCache.js', () => ({ rotationCache: { invalidate
 const { store, db } = vi.hoisted(() => {
   const store = { licenses: [] as any[], sites: [] as any[], activations: [] as any[], events: [] as any[], failWrite: false, lockCount: 0 };
   const db: any = {
+    billingSyncLock: { upsert: vi.fn(async () => ({})) },
     $queryRaw: vi.fn(async () => { store.lockCount++; return [{ id: 1 }]; }),
     billingConfig: { findUnique: vi.fn(async () => null) },
     stripeEvent: {
@@ -77,7 +78,7 @@ function paid(until = '2030-03-01') {
   return { data: [{ customer_email: 'buyer@example.com', lines: { data: [{ type: 'subscription', period: { end: seconds(until) } }] } }] };
 }
 function event(id = 'evt_1', type = 'invoice.paid') {
-  return { id, type, created: seconds('2030-02-01'), data: { object: { id: 'sub_test', subscription: 'sub_test', status: 'old-payload' } } } as unknown as Stripe.Event;
+  return { id, type, created: seconds('2030-02-01'), data: { object: { id: 'sub_test', customer: 'cus_test', subscription: 'sub_test', status: 'old-payload' } } } as unknown as Stripe.Event;
 }
 
 beforeEach(() => {
@@ -98,7 +99,7 @@ describe('billing synchronization', () => {
     expect(store.licenses).toHaveLength(1); expect(store.events).toHaveLength(1);
     expect(store.sites[0].networkStatus).toBe('ACTIVE');
     expect(store.licenses[0].expiresAt.toISOString()).toBe('2030-03-01T00:00:00.000Z');
-    expect(mocks.retrieve).toHaveBeenCalledTimes(1); expect(store.lockCount).toBe(2);
+    expect(mocks.retrieve).toHaveBeenCalledTimes(1); expect(store.lockCount).toBe(3);
   });
   it('uses current Stripe state for delayed failed-payment and subscription events, including same-second events', async () => {
     await dispatchStripeEvent(event('evt_new'));
@@ -180,5 +181,74 @@ it('checkout charges the configured plan and snapshots the grace policy', async 
   mocks.price.mockResolvedValue({ active: true, currency: 'usd', unit_amount: 1900, billing_scheme: 'per_unit', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' } });
   mocks.createSession.mockResolvedValue({ id: 'cs_test', url: 'https://checkout.stripe.com/test' });
   await createCheckoutSession({ plan: 'monthly', siteUrl: 'https://shop.example.com', email: 'buyer@example.com' });
-  expect(mocks.createSession).toHaveBeenCalledWith(expect.objectContaining({ line_items: [{ price: 'price_monthly', quantity: 1 }], subscription_data: { metadata: expect.objectContaining({ failureGraceDays: '2', application: 'wp-advertising' }) } }));
+  expect(mocks.createSession.mock.calls[0][0]).toMatchObject({ line_items: [{ price: 'price_monthly', quantity: 1 }], subscription_data: { metadata: { failureGraceDays: '2', application: 'wp-advertising' } } });
+});
+
+it.each([
+  ['monthly', '2030-03-01', '2030-04-01'],
+  ['annual', '2031-02-01', '2032-02-01'],
+])('extends a %s license only after its renewal invoice is paid', async (_plan, firstEnd, renewedEnd) => {
+  mocks.retrieve.mockResolvedValue(subscription({ current_period_end: seconds(firstEnd) }));
+  mocks.invoices.mockResolvedValue(paid(firstEnd));
+  await dispatchStripeEvent(event());
+  vi.setSystemTime(new Date(firstEnd));
+  mocks.retrieve.mockResolvedValue(subscription({ current_period_end: seconds(renewedEnd) }));
+  mocks.invoices.mockResolvedValue(paid(renewedEnd));
+  await dispatchStripeEvent(event('evt_renewal'));
+  expect(store.licenses).toHaveLength(1);
+  expect(store.licenses[0].paidThrough.toISOString()).toBe(new Date(renewedEnd).toISOString());
+  expect(store.sites[0].networkAccessUntil.toISOString()).toBe(new Date(renewedEnd).toISOString());
+});
+
+it('successful payment during grace clears failure state and preserves the purchased grace policy', async () => {
+  mocks.invoices.mockResolvedValue(paid('2030-02-01'));
+  mocks.retrieve.mockResolvedValue(subscription({ status: 'past_due', latest_invoice: { id: 'in_failure', status: 'open', attempted: true, paid: false, created: seconds('2030-02-01') } }));
+  await dispatchStripeEvent(event('evt_failure', 'invoice.payment_failed'));
+  expect(store.licenses[0].failureGraceDays).toBe(3);
+  db.billingConfig.findUnique.mockResolvedValue({ failureGraceDays: 10 });
+  vi.setSystemTime(new Date('2030-02-02'));
+  mocks.invoices.mockResolvedValue(paid()); mocks.retrieve.mockResolvedValue(subscription());
+  await dispatchStripeEvent(event('evt_recovered'));
+  expect(store.licenses[0].failureInvoiceId).toBeNull(); expect(store.licenses[0].graceUntil).toBeNull();
+  expect(store.licenses[0].failureGraceDays).toBe(3);
+});
+
+it('does not restart grace when another unpaid invoice arrives', async () => {
+  mocks.invoices.mockResolvedValue(paid('2030-02-01'));
+  mocks.retrieve.mockResolvedValue(subscription({ status: 'past_due', latest_invoice: { id: 'in_failure', status: 'open', attempted: true, paid: false, created: seconds('2030-02-01') } }));
+  await dispatchStripeEvent(event('evt_failure', 'invoice.payment_failed'));
+  vi.setSystemTime(new Date('2030-03-01'));
+  mocks.retrieve.mockResolvedValue(subscription({ status: 'past_due', latest_invoice: { id: 'in_next_failure', status: 'open', attempted: true, paid: false, created: seconds('2030-03-01') } }));
+  await dispatchStripeEvent(event('evt_next_failure', 'invoice.payment_failed'));
+  expect(store.licenses[0].graceUntil.toISOString()).toBe('2030-02-04T00:00:00.000Z');
+  expect(store.licenses[0].status).toBe('EXPIRED');
+});
+
+it('a delayed paid event cannot reactivate a canceled subscription', async () => {
+  await dispatchStripeEvent(event());
+  mocks.retrieve.mockResolvedValue(subscription({ status: 'canceled', ended_at: NOW.getTime() / 1000 }));
+  await dispatchStripeEvent(event('evt_delete', 'customer.subscription.deleted'));
+  await dispatchStripeEvent(event('evt_delayed_paid', 'invoice.paid'));
+  expect(store.licenses[0].status).toBe('EXPIRED'); expect(store.sites[0].networkStatus).toBe('EXPIRED');
+});
+
+it('cancellation of an old subscription leaves a second valid license active', async () => {
+  await dispatchStripeEvent(event());
+  store.licenses.push({ id: 'lic_other', status: 'ACTIVE', expiresAt: new Date('2030-12-01') });
+  store.activations.push({ id: 'a_other', siteId: 'site_1', licenseId: 'lic_other', deactivatedAt: null });
+  mocks.retrieve.mockResolvedValue(subscription({ status: 'canceled', ended_at: NOW.getTime() / 1000 }));
+  await dispatchStripeEvent(event('evt_delete', 'customer.subscription.deleted'));
+  expect(store.sites[0].networkStatus).toBe('ACTIVE'); expect(store.sites[0].networkAccessUntil).toEqual(new Date('2030-12-01'));
+});
+
+it('new checkout uses the new Price while reconciliation leaves the purchased subscription untouched', async () => {
+  await dispatchStripeEvent(event());
+  db.billingConfig.findUnique.mockResolvedValue({ monthlyPriceId: 'price_new', monthlyEnabled: true, monthlyAmount: 4900, annualEnabled: false, trialDays: 7, failureGraceDays: 10 });
+  mocks.price.mockResolvedValue({ active: true, currency: 'usd', unit_amount: 4900, billing_scheme: 'per_unit', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' } });
+  mocks.createSession.mockResolvedValue({ id: 'cs_new', url: 'https://checkout.stripe.com/new' });
+  await createCheckoutSession({ plan: 'monthly', siteUrl: 'https://new.example.com', email: 'buyer@example.com' });
+  expect(mocks.createSession.mock.calls[0][0].line_items[0].price).toBe('price_new');
+  await reconcileStripe({ subscriptionId: 'sub_test' });
+  expect(store.licenses[0].failureGraceDays).toBe(3);
+  expect(store.licenses[0].expiresAt).toEqual(new Date('2030-03-01'));
 });

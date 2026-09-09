@@ -105,6 +105,41 @@ final class WPA_License {
         return $base !== '' ? $base . '/checkout' : '';
     }
 
+    public function get_checkout_session($plan = 'monthly', $email = '') {
+        $auth = $this->repo->community_auth_payload();
+        if (empty($auth['siteId']) || empty($auth['apiKey'])) {
+            $registered = $this->repo->ensure_community_registered(false);
+            if (!$registered) {
+                return new WP_Error('not_registered', __('Register the site with the Community API before upgrading.', 'wp-advertising'));
+            }
+            $auth = $this->repo->community_auth_payload();
+        }
+
+        $result = $this->repo->community_api_request('POST', '/entitlements/checkout-session', array_merge($auth, [
+            'plan' => $plan,
+            'email' => $email,
+        ]));
+
+        if (is_wp_error($result) || !is_array($result) || (int) ($result['code'] ?? 0) < 200 || (int) ($result['code'] ?? 0) >= 300) {
+            $message = $this->repo->community_api_error_message($result, __('Could not initiate checkout.', 'wp-advertising'));
+            return new WP_Error('checkout_failed', $message);
+        }
+
+        $body = is_array($result['body'] ?? null) ? $result['body'] : [];
+        if (!empty($body['status']) && $body['status'] === 'already_active') {
+            if (!empty($body['entitlement'])) {
+                $this->store_entitlement($body['entitlement']);
+            }
+            return 'already_active';
+        }
+
+        if (empty($body['checkoutUrl'])) {
+            return new WP_Error('checkout_failed', __('Invalid checkout response.', 'wp-advertising'));
+        }
+
+        return $body['checkoutUrl'];
+    }
+
     public function activate_license($license_key) {
         $license_key = sanitize_text_field((string) $license_key);
         if ($license_key === '') {
@@ -159,8 +194,8 @@ final class WPA_License {
         return $body;
     }
 
-    public function maybe_validate($force = false) {
-        if (!$force) {
+    public function maybe_validate($force = false, $session_id = '') {
+        if (!$force && empty($session_id)) {
             $next = absint(get_option(WPA_LICENSE_NEXT_CHECK_OPTION, 0));
             if ($next > time()) {
                 return true;
@@ -173,8 +208,18 @@ final class WPA_License {
         if (empty($auth['siteId']) || empty($auth['apiKey'])) {
             return true;
         }
+        
+        $payload = $auth;
+        if (!empty($session_id)) {
+            $payload['checkoutSessionId'] = $session_id;
+        }
 
-        $result = $this->repo->community_api_request('POST', '/entitlements/validate', $auth);
+        $result = $this->repo->community_api_request('POST', '/entitlements/validate', $payload);
+        if (is_array($result) && in_array((int) ($result['code'] ?? 0), [401, 403], true)) {
+            $this->clear_entitlement(self::STATUS_REVOKED, $this->repo->community_api_error_message($result));
+            return false;
+        }
+
         if (is_wp_error($result) || !is_array($result) || (int) ($result['code'] ?? 0) < 200 || (int) ($result['code'] ?? 0) >= 300) {
             if ($this->is_network_eligible()) {
                 update_option(WPA_LICENSE_STATUS_OPTION, self::STATUS_GRACE, false);

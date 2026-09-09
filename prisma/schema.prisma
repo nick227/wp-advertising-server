@@ -251,16 +251,19 @@ model BillingConfig {
   id Int @id @default(1)
   monthlyPriceId String @default("") @db.VarChar(255)
   annualPriceId String @default("") @db.VarChar(255)
+  oneTimePriceId String @default("") @db.VarChar(255)
   monthlyAmount Int @default(2900)
   annualAmount Int @default(0)
+  oneTimeAmount Int @default(0)
   monthlyEnabled Boolean @default(false)
   annualEnabled Boolean @default(false)
+  oneTimeEnabled Boolean @default(false)
   trialDays Int @default(30)
   failureGraceDays Int @default(3)
   updatedAt DateTime @updatedAt
 }
 
-// One transactional lock serializes Stripe snapshots and entitlement writes.
+// Customer-scoped transactional locks serialize Stripe snapshots and entitlement writes.
 model BillingSyncLock {
-  id Int @id
+  id String @id @db.VarChar(255)
 }

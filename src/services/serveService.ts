@@ -33,7 +33,7 @@ export async function serveCommunityAd(input: z.infer<typeof serveQuerySchema>, 
 
   if (!sourceSite || !sourceSite.optedIn || sourceSite.status !== 'ACTIVE') return null;
   if (sourceSite.networkStatus !== 'TRIAL' && sourceSite.networkStatus !== 'ACTIVE') return null;
-  if (sourceSite.networkAccessUntil !== null && sourceSite.networkAccessUntil <= Date.now()) return null;
+  if (!sourceSite.networkAccessUntil || sourceSite.networkAccessUntil <= Date.now()) return null;
 
   const ad = rotationCache.nextAd(sourceSite.id, siteDomain);
   if (!ad) return null;

@@ -6,6 +6,15 @@ if (!defined('ABSPATH')) {
 final class WPA_Repository {
     private $ads_table;
     private $events_table;
+    private $community_refresh_pending_zone = null;
+
+    // Consume-once accessor: returns the pending refresh zone set by get_community_payload()
+    // and clears it so repeated calls return null (prevents double-refresh).
+    public function take_pending_community_refresh_zone() {
+        $zone = $this->community_refresh_pending_zone;
+        $this->community_refresh_pending_zone = null;
+        return $zone;
+    }
 
     public function __construct() {
         $this->ads_table = WPA_Installer::ads_table();
@@ -395,7 +404,6 @@ final class WPA_Repository {
             'ad_id' => absint($payload['ad_id'] ?? 0),
             'product_id' => absint($payload['product_id'] ?? 0),
             'zone' => $this->sanitize_zone($payload['zone'] ?? WPA_DEFAULT_ZONE),
-            'community_target_key' => preg_replace('/[^a-f0-9]/', '', (string) ($payload['community_target_key'] ?? '')),
             'exp' => time() + WPA_EVENT_TOKEN_TTL,
         ];
         // Click tokens carry the exact rendered destination so redirects never re-query ads.
@@ -429,7 +437,6 @@ final class WPA_Repository {
             'ad_id' => absint($decoded['ad_id'] ?? 0),
             'product_id' => absint($decoded['product_id'] ?? 0),
             'zone' => $this->sanitize_zone($decoded['zone'] ?? WPA_DEFAULT_ZONE),
-            'community_target_key' => preg_replace('/[^a-f0-9]/', '', (string) ($decoded['community_target_key'] ?? '')),
             'target' => esc_url_raw($decoded['target'] ?? ''),
         ];
     }
@@ -619,29 +626,233 @@ final class WPA_Repository {
         return is_array($ids) ? $ids : [];
     }
 
+    // ── Community ad cache helpers ───────────────────────────────────────────
+
+    private function community_zone_hash($zone) {
+        return md5($zone . '|' . home_url('/'));
+    }
+
+    private function read_community_cache($zone_hash) {
+        $record = get_option('wp_advertising_community_ad_' . $zone_hash, null);
+        if (!is_array($record)) {
+            return null;
+        }
+
+        // Decision table:
+        //   schema mismatch      → unusable (format changed in this plugin version)
+        //   plugin-version diff  → unusable (forces cold fetch after plugin update)
+        //   past not_after       → unusable (server-stamped hard expiry, clock-independent)
+        //   network_epoch diff   → cannot check without a network call; Railway must use
+        //                          not_after for forced invalidation; epoch is stored for
+        //                          diagnostics and future server-push invalidation support
+        //   past stale_until     → callers check this; record is returned so cold path can
+        //                          distinguish "expired but valid shape" from "no record"
+        //   past fresh_until     → callers check this; stale-while-revalidate trigger
+        //   all checks pass      → return record
+
+        if ((int)($record['schema'] ?? 0) !== WPA_COMMUNITY_CACHE_SCHEMA) {
+            return null;
+        }
+        if (($record['wpa_version'] ?? '') !== WPA_VERSION) {
+            return null;
+        }
+        $not_after = (int)($record['not_after'] ?? 0);
+        if ($not_after > 0 && time() >= $not_after) {
+            return null;
+        }
+        return $record;
+    }
+
+    private function write_community_cache($zone_hash, array $payload, $not_after = 0, $net_epoch = 0, array $extra = []) {
+        $now = time();
+        $record = array_merge([
+            'schema'      => WPA_COMMUNITY_CACHE_SCHEMA,
+            'wpa_version' => WPA_VERSION,
+            'payload'     => $payload,
+            'fetched_at'  => $now,
+            'fresh_until' => $now + WPA_COMMUNITY_FRESH_TTL,
+            'stale_until' => $now + WPA_COMMUNITY_STALE_TTL,
+            'not_after'   => (int)$not_after,
+            'net_epoch'   => (int)$net_epoch,
+            'last_fail'   => 0,
+            'next_retry'  => 0,
+            'fail_count'  => 0,
+        ], $extra);
+        update_option('wp_advertising_community_ad_' . $zone_hash, $record, false);
+    }
+
+    // Atomic lock: INSERT IGNORE guarantees exactly one process gets rows=1 at the DB level.
+    // Falls back to wp_cache_add (SETNX semantics) when a persistent object cache is present.
+    private function try_acquire_refresh_lock($zone_hash) {
+        $lock_name = 'wp_advertising_community_lock_' . $zone_hash;
+        if (wp_using_ext_object_cache()) {
+            return (bool) wp_cache_add($lock_name, time(), 'wp_advertising', WPA_COMMUNITY_LOCK_TTL);
+        }
+        global $wpdb;
+        $rows = (int) $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %d, 'no')",
+            $lock_name, time()
+        ));
+        if ($rows === 1) {
+            wp_cache_set($lock_name, time(), 'options');
+            return true;
+        }
+        // Steal a stale lock left by a process that died without releasing it.
+        $lock_time = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+            $lock_name
+        ));
+        if ($lock_time > 0 && time() - $lock_time > WPA_COMMUNITY_LOCK_TTL) {
+            $wpdb->delete($wpdb->options, ['option_name' => $lock_name], ['%s']);
+            wp_cache_delete($lock_name, 'options');
+            $rows = (int) $wpdb->query($wpdb->prepare(
+                "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %d, 'no')",
+                $lock_name, time()
+            ));
+            return $rows === 1;
+        }
+        return false;
+    }
+
+    private function release_refresh_lock($zone_hash) {
+        $lock_name = 'wp_advertising_community_lock_' . $zone_hash;
+        // Mirror the acquisition path: ext object cache → cache delete only;
+        // DB fallback → option delete only. Avoids spurious queries on the wrong backend.
+        if (wp_using_ext_object_cache()) {
+            wp_cache_delete($lock_name, 'wp_advertising');
+        } else {
+            delete_option($lock_name);
+        }
+    }
+
+    // Persist failure info; next_retry uses exponential backoff + ±10% jitter to prevent
+    // synchronized retry storms when the ad-server is unhealthy.
+    private function record_refresh_failure($zone_hash, array $record) {
+        $now = time();
+        $fail_count = (int)($record['fail_count'] ?? 0) + 1;
+        $base = min(600, 30 * (1 << min($fail_count - 1, 4)));
+        $jitter = (int)($base * 0.1 * (mt_rand(0, 100) / 50.0 - 1.0));
+        update_option('wp_advertising_community_ad_' . $zone_hash, array_merge($record, [
+            'last_fail'  => $now,
+            'next_retry' => $now + $base + $jitter,
+            'fail_count' => $fail_count,
+        ]), false);
+    }
+
+    // Builds a structured result from the raw remote response. Returns null if the
+    // destination is missing or not publicly routable (ghost-traffic invariant).
+    private function build_payload_from_remote($zone, array $remote, array $settings) {
+        $community_id = sanitize_key($remote['adId'] ?? $remote['community_ad_id'] ?? $remote['id'] ?? 'community');
+        $destination  = esc_url_raw($remote['targetUrl'] ?? $remote['target_url'] ?? '');
+        if (!$community_id || !$this->is_publicly_routable_url($destination)) {
+            return null;
+        }
+        return [
+            'payload' => [
+                'ad_id'                    => 0,
+                'product_id'               => 0,
+                'community_id'             => $community_id,
+                'zone'                     => WPA_COMMUNITY_ZONE,
+                'label'                    => sanitize_text_field($remote['label'] ?? $settings['label']),
+                'headline'                 => sanitize_text_field($remote['headline'] ?? $remote['title'] ?? $settings['headline']),
+                'body'                     => wp_strip_all_tags($remote['body'] ?? $remote['description'] ?? $settings['body']),
+                'image_url'                => esc_url_raw($remote['imageUrl'] ?? $remote['image_url'] ?? $remote['image'] ?? ''),
+                'target_url'               => $destination,
+                'cta'                      => sanitize_text_field($remote['cta'] ?? $settings['cta']),
+                'price_html'               => '',
+                'open_new_tab'             => true,
+                'nofollow'                 => true,
+                'source_type'              => 'community',
+                'product_mode'             => 'network',
+                'theme'                    => $this->allowed_theme($settings['theme'] ?? 'dark'),
+                'preview'                  => false,
+                'network_click_url'        => '',
+                'skip_local_click_tracking' => true,
+                'network_impression_url'   => '',
+            ],
+            'not_after' => (int)($remote['notAfter'] ?? $remote['not_after'] ?? 0),
+            'net_epoch'  => (int)($remote['networkEpoch'] ?? $remote['network_epoch'] ?? 0),
+        ];
+    }
+
+    // Called post-response (after fastcgi_finish_request) or from cron. Caller MUST hold the
+    // refresh lock; this method releases it on every exit path.
+    public function execute_background_community_refresh($zone) {
+        $zone_hash = $this->community_zone_hash($zone);
+        $record    = $this->read_community_cache($zone_hash);
+        $settings  = $this->get_community_shortcode_settings();
+        $tracking  = $this->tracking_enabled();
+
+        $result = $this->community_api_request('GET', '/community/serve', [], [
+            'siteUrl'       => home_url('/'),
+            'zone'          => $this->sanitize_zone($zone ?: WPA_COMMUNITY_ZONE),
+            'pluginVersion' => WPA_VERSION,
+            'tracking'      => $tracking ? '1' : '0',
+        ]);
+
+        if (!is_array($result)) {
+            if ($record) {
+                $this->record_refresh_failure($zone_hash, $record);
+            }
+            $this->release_refresh_lock($zone_hash);
+            return;
+        }
+        $code = (int)($result['code'] ?? 0);
+        if ($code === 204) {
+            // No ad available — not a failure, just nothing to serve right now.
+            $this->release_refresh_lock($zone_hash);
+            return;
+        }
+        if ($code < 200 || $code >= 300 || !is_array($result['body'])) {
+            if ($record) {
+                $this->record_refresh_failure($zone_hash, $record);
+            }
+            $this->release_refresh_lock($zone_hash);
+            return;
+        }
+        $built = $this->build_payload_from_remote($zone, $result['body'], $settings);
+        if (!$built) {
+            if ($record) {
+                $this->record_refresh_failure($zone_hash, $record);
+            }
+            $this->release_refresh_lock($zone_hash);
+            return;
+        }
+        $this->write_community_cache($zone_hash, $built['payload'], $built['not_after'], $built['net_epoch']);
+        $this->release_refresh_lock($zone_hash);
+    }
+
+    // Release the refresh lock and schedule a one-shot cron event so the refresh
+    // happens on the next WP-Cron tick (used when fastcgi_finish_request is unavailable).
+    public function defer_community_refresh_to_cron($zone) {
+        $this->release_refresh_lock($this->community_zone_hash($zone));
+        wp_schedule_single_event(time(), 'wp_advertising_prefetch_community_ad', [$zone]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     public function get_community_payload($zone = WPA_COMMUNITY_ZONE, $settings = [], $preview = false, $track = null) {
         $settings = wp_parse_args($settings, $this->get_community_shortcode_settings());
         $fallback = [
-            'ad_id' => 0,
-            'product_id' => 0,
-            'community_id' => 'preview',
-            'community_target_key' => '',
-            'zone' => WPA_COMMUNITY_ZONE,
-            'label' => sanitize_text_field($settings['label']),
-            'headline' => sanitize_text_field($settings['headline']),
-            'body' => wp_strip_all_tags($settings['body']),
-            'image_url' => '',
-            'target_url' => home_url('/'),
-            'cta' => sanitize_text_field($settings['cta']),
-            'price_html' => '',
-            'open_new_tab' => true,
-            'nofollow' => true,
-            'source_type' => 'community',
-            'product_mode' => 'network',
-            'theme' => $this->allowed_theme($settings['theme'] ?? 'dark'),
-            'preview' => (bool) $preview,
+            'ad_id'                    => 0,
+            'product_id'               => 0,
+            'community_id'             => 'preview',
+            'zone'                     => WPA_COMMUNITY_ZONE,
+            'label'                    => sanitize_text_field($settings['label']),
+            'headline'                 => sanitize_text_field($settings['headline']),
+            'body'                     => wp_strip_all_tags($settings['body']),
+            'image_url'                => '',
+            'target_url'               => home_url('/'),
+            'cta'                      => sanitize_text_field($settings['cta']),
+            'price_html'               => '',
+            'open_new_tab'             => true,
+            'nofollow'                 => true,
+            'source_type'              => 'community',
+            'product_mode'             => 'network',
+            'theme'                    => $this->allowed_theme($settings['theme'] ?? 'dark'),
+            'preview'                  => (bool) $preview,
             'skip_local_click_tracking' => false,
-            'network_impression_url' => '',
+            'network_impression_url'   => '',
         ];
 
         $endpoint = $this->community_api_endpoint('/community/serve');
@@ -653,74 +864,82 @@ final class WPA_Repository {
             return $preview ? $fallback : null;
         }
 
-        $tracking = null === $track ? $this->tracking_enabled() : (bool) $track;
-        $remote = [];
+        // Three-path server-side cache:
+        //   fresh  (0–5 min)   – return immediately, no network call
+        //   stale  (5–60 min)  – return cached creative instantly; one process refreshes
+        //                        post-response via fastcgi_finish_request or cron
+        //   cold   (>60 min)   – blocking fetch; visitor waits up to the API timeout
+        $zone_hash = $this->community_zone_hash($zone);
+        $record    = $preview ? null : $this->read_community_cache($zone_hash);
+        $now       = time();
+
+        // read_community_cache() returns null when not_after has elapsed (server-stamped
+        // hard expiry), on schema mismatch, or on plugin-version mismatch. In every null
+        // case $is_stale stays false below, so the old payload is unreachable — the cold
+        // path is the ONLY path. If the cold fetch also fails, we return null. This is
+        // intentional: not_after expiry is not equivalent to ordinary staleness and must
+        // never fall back to the invalidated creative.
+        $is_fresh = $record && $now < (int)($record['fresh_until'] ?? 0);
+        $is_stale = $record && $now < (int)($record['stale_until'] ?? 0);
+
+        // ── Fresh ─────────────────────────────────────────────────────────────
+        if ($is_fresh) {
+            return $record['payload'];
+        }
+
+        // ── Stale: serve immediately, signal deferred post-response refresh ───
+        if ($is_stale) {
+            $next_retry = (int)($record['next_retry'] ?? 0);
+            if ($now >= $next_retry && $this->try_acquire_refresh_lock($zone_hash)) {
+                $this->community_refresh_pending_zone = $zone;
+            }
+            return $record['payload'];
+        }
+
+        // ── Cold: blocking fetch (no usable cache) ────────────────────────────
+        $tracking = null === $track ? $this->tracking_enabled() : (bool)$track;
         $result = $this->community_api_request('GET', '/community/serve', [], [
-            'siteUrl' => home_url('/'),
-            'zone' => $this->sanitize_zone($zone ?: WPA_COMMUNITY_ZONE),
+            'siteUrl'       => home_url('/'),
+            'zone'          => $this->sanitize_zone($zone ?: WPA_COMMUNITY_ZONE),
             'pluginVersion' => WPA_VERSION,
-            'tracking' => $tracking ? '1' : '0',
+            'tracking'      => $tracking ? '1' : '0',
         ]);
 
-        if (is_array($result)) {
-            $code = (int) ($result['code'] ?? 0);
-            if ($code === 204) {
-                return $preview ? $fallback : null;
-            }
-            if ($code >= 200 && $code < 300 && is_array($result['body'])) {
-                $remote = $result['body'];
-            }
-        }
-
-        if (!$remote) {
+        if (!is_array($result)) {
             return $preview ? $fallback : null;
         }
-
-        $community_id = sanitize_key($remote['adId'] ?? $remote['community_ad_id'] ?? $remote['id'] ?? 'community');
-        // Real destination must be public. Network click/impression hosts are often misconfigured
-        // as localhost during development — never expose those to visitors.
-        $destination = esc_url_raw($remote['targetUrl'] ?? $remote['target_url'] ?? '');
-        if (!$this->is_publicly_routable_url($destination)) {
+        $code = (int)($result['code'] ?? 0);
+        if ($code === 204) {
             return $preview ? $fallback : null;
         }
-        if (!$community_id) {
+        if ($code < 200 || $code >= 300 || !is_array($result['body'])) {
             return $preview ? $fallback : null;
         }
-
-        $target_key = md5($community_id . '|' . $destination);
-        set_transient('wp_advertising_community_target_' . $target_key, $destination, WPA_EVENT_TOKEN_TTL);
-
-        // Never emit community-server click/impression URLs into HTML (ghost-traffic invariant).
-        // Clicks go to the advertiser destination; network impressions are counted on /community/serve.
-        return [
-            'ad_id' => 0,
-            'product_id' => 0,
-            'community_id' => $community_id,
-            'community_target_key' => $target_key,
-            'zone' => WPA_COMMUNITY_ZONE,
-            'label' => sanitize_text_field($remote['label'] ?? $settings['label']),
-            'headline' => sanitize_text_field($remote['headline'] ?? $remote['title'] ?? $settings['headline']),
-            'body' => wp_strip_all_tags($remote['body'] ?? $remote['description'] ?? $settings['body']),
-            'image_url' => esc_url_raw($remote['imageUrl'] ?? $remote['image_url'] ?? $remote['image'] ?? ''),
-            'target_url' => $destination,
-            'cta' => sanitize_text_field($remote['cta'] ?? $settings['cta']),
-            'price_html' => '',
-            'open_new_tab' => true,
-            'nofollow' => true,
-            'source_type' => 'community',
-            'product_mode' => 'network',
-            'theme' => $this->allowed_theme($settings['theme'] ?? 'dark'),
-            'preview' => (bool) $preview,
-            'network_click_url' => '',
-            'skip_local_click_tracking' => true,
-            'network_impression_url' => '',
-        ];
+        $built = $this->build_payload_from_remote($zone, $result['body'], $settings);
+        if (!$built) {
+            return $preview ? $fallback : null;
+        }
+        if (!$preview) {
+            $this->write_community_cache($zone_hash, $built['payload'], $built['not_after'], $built['net_epoch']);
+        }
+        $built['payload']['preview'] = (bool)$preview;
+        return $built['payload'];
     }
 
-    public function resolve_community_click_target($target_key) {
-        $target_key = preg_replace('/[^a-f0-9]/', '', (string) $target_key);
-        $target = $target_key ? get_transient('wp_advertising_community_target_' . $target_key) : '';
-        return $target ? esc_url_raw($target) : home_url('/');
+    // Opportunistic prewarm from WP-Cron. Skips idle sites that have no active cache.
+    // Correctness does not depend on this running — the render path is safe without it.
+    public function prime_community_ad_cache($zone = WPA_COMMUNITY_ZONE) {
+        if (!$this->community_enabled() || !(new WPA_License($this))->is_network_eligible()) {
+            return;
+        }
+        $zone_hash = $this->community_zone_hash($zone);
+        if (!$this->read_community_cache($zone_hash)) {
+            return; // No active cache — site has been idle, nothing to prewarm.
+        }
+        if (!$this->try_acquire_refresh_lock($zone_hash)) {
+            return; // Another process is already refreshing.
+        }
+        $this->execute_background_community_refresh($zone);
     }
 
     /**
@@ -908,7 +1127,10 @@ final class WPA_Repository {
 
     private function is_duplicate_event($type, $ad_id, $product_id, $zone, $ip_hash, $user_agent_hash) {
         global $wpdb;
-        $window = ('click' === $type) ? 10 : 600;
+        // 30s for impressions: prevents double-fires from page reloads without collapsing
+        // legitimate separate page views by the same visitor within a session.
+        // 10s for clicks: unchanged — protects against redirect double-clicks.
+        $window = ('click' === $type) ? 10 : 30;
         $since = gmdate('Y-m-d H:i:s', time() - $window);
         $count = (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$this->events_table}
@@ -1060,8 +1282,7 @@ final class WPA_Repository {
         $resolved = $this->resolve_click_target(
             $token['ad_id'] ?? 0,
             $token['product_id'] ?? 0,
-            $token['zone'] ?? WPA_DEFAULT_ZONE,
-            $token['community_target_key'] ?? ''
+            $token['zone'] ?? WPA_DEFAULT_ZONE
         );
         return $this->is_allowed_target_url($resolved) ? $resolved : home_url('/');
     }
@@ -1083,12 +1304,8 @@ final class WPA_Repository {
      * Legacy click destination reconstruction for tokens without a signed target.
      * Signed product_id is authoritative for WooCommerce creatives, including ad_id=0.
      */
-    public function resolve_click_target($ad_id, $product_id, $zone, $community_target_key = '') {
+    public function resolve_click_target($ad_id, $product_id, $zone) {
         $zone = $this->sanitize_zone($zone);
-
-        if ($zone === WPA_COMMUNITY_ZONE) {
-            return $this->resolve_community_click_target($community_target_key);
-        }
 
         // Snapshot product from the rendered creative (covers default/random ads with ad_id=0).
         if ($product_id && $this->wc_active()) {

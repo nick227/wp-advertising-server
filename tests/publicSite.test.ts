@@ -131,9 +131,9 @@ describe('public product site', () => {
     expect(res.body.ok).toBe(true);
   });
 
-  it('plugin download without URL falls back to install section', async () => {
+  it('plugin download uses the generated release when no external URL is set', async () => {
     const res = await request(app).get('/plugin/download');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/#install');
+    expect(res.headers.location).toBe('/assets/wp-advertising.zip');
   });
 });

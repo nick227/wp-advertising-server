@@ -2,7 +2,7 @@ import type Stripe from 'stripe';
 import { Prisma, type License } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { prisma } from '../lib/prisma.js';
-import { badRequest } from '../lib/errors.js';
+import { badRequest, forbidden } from '../lib/errors.js';
 import { normalizeDomain, normalizeSiteUrl } from '../lib/urlUtils.js';
 import { stripeRefId } from './billingService.js';
 import { getStripe } from './stripeClient.js';
@@ -37,7 +37,7 @@ export function billingWindow(subscription: Stripe.Subscription, paidThrough: Da
     // Preserve an ongoing delinquency even if Stripe generates another unpaid invoice.
     graceUntil = existing?.graceUntil && paid <= existing.graceUntil.getTime()
       ? existing.graceUntil
-      : new Date(paid + graceDays * DAY);
+      : new Date(Math.max(paid, (invoice.status_transitions?.finalized_at ?? invoice.created ?? paid / 1000) * 1000) + graceDays * DAY);
   }
   const expiresAt = new Date(terminal ? Math.min(paid, subscription.ended_at ? subscription.ended_at * 1000 : now.getTime())
     : Math.max(paid, graceUntil?.getTime() ?? 0));
@@ -45,16 +45,18 @@ export function billingWindow(subscription: Stripe.Subscription, paidThrough: Da
   return { status, expiresAt, paidThrough, graceUntil, failureInvoiceId };
 }
 
-async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: string) {
+async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: string, customerId: string | undefined, expectedSiteId?: string) {
   const stripe = getStripe();
   // Fetched under the DB lock: delayed events cannot overwrite a newer snapshot.
   const subscription = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['latest_invoice'] });
+  if (stripeRefId(subscription.customer) !== customerId) throw badRequest('Subscription customer changed; retry synchronization');
+  if (expectedSiteId && subscription.metadata.siteId !== expectedSiteId) throw forbidden('Subscription does not belong to this site');
   let license = await db.license.findFirst({ where: { stripeSubscriptionId: subscriptionId } });
   const settings = await getBillingConfig(db);
   const acceptedPrices = [settings.monthlyPriceId, settings.annualPriceId, config.stripePriceMonthly, config.stripePriceAnnual].filter(Boolean);
   const owned = subscription.metadata.application === 'wp-advertising'
     || subscription.items.data.some((item) => acceptedPrices.includes(item.price.id));
-  if (!license && (!owned || !subscription.metadata.siteUrl)) return { ignored: true };
+  if (!license && (!owned || (!subscription.metadata.siteUrl && !subscription.metadata.siteId))) return { ignored: true };
 
   const invoices = await stripe.invoices.list({ subscription: subscriptionId, status: 'paid', limit: 1 });
   const invoice = invoices.data[0];
@@ -69,16 +71,29 @@ async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: st
   const window = billingWindow(subscription, paidThrough, license, graceDays);
   const now = new Date();
   if (!license) {
-    const siteUrl = normalizeSiteUrl(subscription.metadata.siteUrl);
-    const siteDomain = normalizeDomain(new URL(siteUrl).hostname);
-    let site = await db.communitySite.findFirst({ where: { OR: [{ siteUrl }, { siteDomain }] } });
-    if (!site) site = await db.communitySite.create({ data: { siteUrl, siteDomain, publicKey: `pub_${nanoid(32)}`, lastSeenAt: now } });
+    let site = null;
+    const siteUrl = subscription.metadata.siteUrl ? normalizeSiteUrl(subscription.metadata.siteUrl) : '';
+    const siteDomain = siteUrl ? normalizeDomain(new URL(siteUrl).hostname) : '';
+
+    if (subscription.metadata.siteId) {
+      site = await db.communitySite.findUnique({ where: { id: subscription.metadata.siteId } });
+    }
+
+    if (!site && siteUrl) {
+      site = await db.communitySite.findFirst({ where: { OR: [{ siteUrl }, { siteDomain }] } });
+      if (!site) site = await db.communitySite.create({ data: { siteUrl, siteDomain, publicKey: `pub_${nanoid(32)}`, lastSeenAt: now } });
+    }
+
+    if (!site) {
+      throw badRequest('Cannot bind license: missing site URL or site ID');
+    }
+
     license = await db.license.create({ data: {
       licenseKey: `lic_${nanoid(32)}`, stripeSubscriptionId: subscriptionId,
       stripeCustomerId: stripeRefId(subscription.customer), customerEmail: invoice?.customer_email,
       failureGraceDays: graceDays, stripeSyncedAt: now, ...window,
     } });
-    await db.licenseActivation.create({ data: { licenseId: license.id, siteId: site.id, domainSnapshot: siteDomain, lastValidatedAt: now } });
+    await db.licenseActivation.create({ data: { licenseId: license.id, siteId: site.id, domainSnapshot: site.siteDomain, lastValidatedAt: now } });
   } else {
     license = await db.license.update({ where: { id: license.id }, data: {
       ...window,
@@ -88,7 +103,8 @@ async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: st
     } });
   }
   const activations = await db.licenseActivation.findMany({ where: { licenseId: license.id, deactivatedAt: null } });
-  for (const activation of activations) {
+  for (const activation of [...activations].sort((a, b) => a.siteId.localeCompare(b.siteId))) {
+    await db.$queryRaw`SELECT id FROM CommunitySite WHERE id = ${activation.siteId} FOR UPDATE`;
     const site = await db.communitySite.findUnique({ where: { id: activation.siteId } });
     if (!site || site.networkStatus === 'REVOKED' || site.networkStatus === 'SUSPENDED') continue;
     // Another valid license must survive cancellation of an older subscription.
@@ -105,15 +121,21 @@ async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: st
   return { licenseId: license.id, status: license.status, expiresAt: license.expiresAt, affectedSiteIds: activations.map((activation) => activation.siteId) };
 }
 
-export async function synchronizeStripe(subscriptionId: string, event?: Stripe.Event) {
+export async function synchronizeStripe(subscriptionId: string, event?: Stripe.Event, expectedSiteId?: string) {
+  // Stripe customer identity is stable. Reconciliation looks it up; signed events
+  // already include it. Subscription state is always fetched again under the lock.
+  const eventCustomer = event && stripeRefId((event.data.object as Stripe.Subscription).customer);
+  const customerId = eventCustomer || stripeRefId((await getStripe().subscriptions.retrieve(subscriptionId)).customer);
+  const lockId = customerId ? `customer:${customerId}` : `subscription:${subscriptionId}`;
+  await prisma.billingSyncLock.upsert({ where: { id: lockId }, create: { id: lockId }, update: {} });
   const result = await prisma.$transaction(async (db) => {
-    await db.$queryRaw`SELECT id FROM BillingSyncLock WHERE id = 1 FOR UPDATE`;
+    await db.$queryRaw`SELECT id FROM BillingSyncLock WHERE id = ${lockId} FOR UPDATE`;
     if (event && await db.stripeEvent.findUnique({ where: { id: event.id } })) {
       const license = await db.license.findFirst({ where: { stripeSubscriptionId: subscriptionId } });
       const activations = license ? await db.licenseActivation.findMany({ where: { licenseId: license.id, deactivatedAt: null } }) : [];
       return { duplicate: true, affectedSiteIds: activations.map((activation) => activation.siteId) };
     }
-    const synced = await syncSubscription(db, subscriptionId);
+    const synced = await syncSubscription(db, subscriptionId, customerId, expectedSiteId);
     // This commits atomically with all license and site changes; errors roll it all back.
     if (event) await db.stripeEvent.create({ data: { id: event.id, type: event.type } });
     return synced;

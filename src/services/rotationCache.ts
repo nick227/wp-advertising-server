@@ -106,7 +106,7 @@ export const rotationCache = {
     state.cursor = (state.cursor + 1) % state.ads.length;
 
     const ad = state.ads[idx];
-    if (ad.networkAccessUntil !== null && ad.networkAccessUntil <= now) {
+    if (!ad.networkAccessUntil || ad.networkAccessUntil <= now) {
       continue;
     }
 

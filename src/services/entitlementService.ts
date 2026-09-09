@@ -125,22 +125,97 @@ export async function startTrial(input: z.infer<typeof entitlementAuthSchema>) {
   return entitlementPayload(updated, now);
 }
 
-export async function validateEntitlement(input: z.infer<typeof entitlementAuthSchema>) {
+export const entitlementValidateSchema = entitlementAuthSchema.extend({
+  checkoutSessionId: z.string().regex(/^cs_[a-zA-Z0-9_]+$/).max(255).optional(),
+});
+
+export async function validateEntitlement(input: z.infer<typeof entitlementValidateSchema>) {
   let site = await authenticateForEntitlement(input);
   const now = new Date();
+
+  if (input.checkoutSessionId) {
+    const { getStripe } = await import('./stripeClient.js');
+    const { synchronizeStripe } = await import('./stripeEventHandlers.js');
+    const { getBillingConfig } = await import('./billingConfigService.js');
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.retrieve(input.checkoutSessionId, {
+      expand: ['subscription', 'line_items'],
+    });
+    const billingConfig = await getBillingConfig();
+
+    if (
+      session &&
+      session.metadata?.siteId === site.id &&
+      session.payment_status === 'paid'
+    ) {
+      const plan = session.metadata?.plan as 'monthly' | 'annual' | 'oneTime';
+      const expectedPriceId = plan ? billingConfig[`${plan}PriceId`] : null;
+
+      if (session.mode === 'subscription' && session.subscription && expectedPriceId) {
+        const subscription = typeof session.subscription === 'string' ? null : session.subscription;
+        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+        
+        let validPrice = false;
+        if (subscription && subscription.items?.data) {
+           validPrice = subscription.items.data.some((item: any) => item.price.id === expectedPriceId);
+        }
+
+        if (!subscription || (subscription.metadata?.siteId === site.id && validPrice)) {
+          await synchronizeStripe(subscriptionId, undefined, site.id);
+          const freshSite = await prisma.communitySite.findUnique({ where: { id: site.id } });
+          if (freshSite) site = freshSite;
+        }
+      } else if (session.mode === 'payment' && plan === 'oneTime' && expectedPriceId) {
+        let validPrice = false;
+        if (session.line_items?.data) {
+           validPrice = session.line_items.data.some((item: any) => item.price?.id === expectedPriceId);
+        }
+        
+        if (validPrice) {
+          const { nanoid } = await import('nanoid');
+          await prisma.$transaction(async (db) => {
+            let license = await db.license.findFirst({ where: { notes: `OneTime:${session.id}` } });
+            if (!license) {
+               const now = new Date();
+               license = await db.license.create({
+                  data: {
+                     licenseKey: `lic_${nanoid(32)}`,
+                     status: 'ACTIVE',
+                     expiresAt: null,
+                     customerEmail: session.customer_details?.email,
+                     notes: `OneTime:${session.id}`,
+                     stripeSyncedAt: now,
+                  }
+               });
+               const siteDomain = site.siteDomain;
+               await db.licenseActivation.create({
+                  data: {
+                     licenseId: license.id,
+                     siteId: site.id,
+                     domainSnapshot: siteDomain,
+                     lastValidatedAt: now,
+                  }
+               });
+               await db.communitySite.update({
+                  where: { id: site.id },
+                  data: {
+                     networkStatus: 'ACTIVE',
+                     networkAccessUntil: null,
+                  }
+               });
+            }
+          });
+          
+          const freshSite = await prisma.communitySite.findUnique({ where: { id: site.id } });
+          if (freshSite) site = freshSite;
+        }
+      }
+    }
+  }
+
   site = await markExpiredIfNeeded(site, now);
 
-  const data: { lastSeenAt: Date; optedIn?: boolean } = { lastSeenAt: now };
-  if (site.networkStatus === 'EXPIRED' && site.optedIn) {
-    data.optedIn = false;
-  }
-  site = await prisma.communitySite.update({
-    where: { id: site.id },
-    data,
-  });
-  if (data.optedIn === false) {
-    await rotationCache.invalidate();
-  }
+  site = await prisma.communitySite.update({ where: { id: site.id }, data: { lastSeenAt: now } });
   return entitlementPayload(site, now);
 }
 
@@ -156,6 +231,7 @@ export async function requireNetworkEntitlement(siteId: string) {
 
 export async function expireDueEntitlements() {
   const now = new Date();
+  await prisma.license.updateMany({ where: { status: 'ACTIVE', expiresAt: { lte: now } }, data: { status: 'EXPIRED' } });
   const result = await prisma.communitySite.updateMany({
     where: {
       networkStatus: { in: ['TRIAL', 'ACTIVE'] },

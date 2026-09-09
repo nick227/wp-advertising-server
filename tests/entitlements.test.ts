@@ -174,3 +174,31 @@ describe('POST /v1/entitlements/activate-license', () => {
     expect(rc.invalidate).toHaveBeenCalled();
   });
 });
+
+describe('trial policy changes', () => {
+  it('uses the current duration only when allocating a new trial', async () => {
+    let current: any = { ...baseSite, networkTrialStartedAt: null, networkStatus: null };
+    p.communitySite.findUnique.mockImplementation(async () => current);
+    p.communitySite.update.mockImplementation(async ({ data }: any) => { current = { ...current, ...data }; return current; });
+    p.billingConfig.findUnique.mockResolvedValue({ trialDays: 14 } as never);
+    const auth = { siteId: baseSite.id, apiKey: baseSite.publicKey };
+    const first = await request(app).post('/v1/entitlements/start-trial').send(auth).expect(200);
+    const initialEnd = first.body.networkAccessUntil;
+    expect(Date.parse(initialEnd) - Date.parse(first.body.networkTrialStartedAt)).toBe(14 * 86400000);
+    p.billingConfig.findUnique.mockResolvedValue({ trialDays: 7 } as never);
+    const existing = await request(app).post('/v1/entitlements/start-trial').send(auth).expect(200);
+    expect(existing.body.networkAccessUntil).toBe(initialEnd);
+    current = { ...baseSite, id: 'new_site', networkTrialStartedAt: null, networkStatus: null };
+    const next = await request(app).post('/v1/entitlements/start-trial').send({ ...auth, siteId: 'new_site' }).expect(200);
+    expect(Date.parse(next.body.networkAccessUntil) - Date.parse(next.body.networkTrialStartedAt)).toBe(7 * 86400000);
+  });
+  it('disabling trials does not shorten an existing trial', async () => {
+    const until = new Date(Date.now() + 10 * 86400000);
+    p.billingConfig.findUnique.mockResolvedValue({ trialDays: 0 } as never);
+    p.communitySite.findUnique.mockResolvedValue({ ...baseSite, networkStatus: 'TRIAL', networkTrialStartedAt: new Date(), networkAccessUntil: until });
+    const res = await request(app).post('/v1/entitlements/start-trial').send({ siteId: baseSite.id, apiKey: baseSite.publicKey }).expect(200);
+    expect(res.body.networkAccessUntil).toBe(until.toISOString());
+    p.communitySite.findUnique.mockResolvedValue(baseSite);
+    await request(app).post('/v1/entitlements/start-trial').send({ siteId: baseSite.id, apiKey: baseSite.publicKey }).expect(403);
+  });
+});

@@ -28,8 +28,10 @@ final class WPA_Plugin {
     }
 
     private function hooks() {
+        add_filter('cron_schedules', [$this, 'register_cron_schedules']);
         add_action('plugins_loaded', ['WPA_Installer', 'maybe_upgrade']);
         add_action(WPA_RETENTION_HOOK, [$this->repo, 'cleanup_old_events']);
+        add_action('wp_advertising_prefetch_community_ad', [$this->repo, 'prime_community_ad_cache']);
         add_action('admin_menu', [$this->admin, 'register_menu']);
         add_action('current_screen', [$this->admin, 'suppress_unrelated_admin_notices']);
         add_action('admin_enqueue_scripts', [$this->admin, 'enqueue_assets']);
@@ -43,7 +45,8 @@ final class WPA_Plugin {
         add_action('admin_post_wp_advertising_save_main_settings', [$this->admin, 'handle_save_main_settings']);
         add_action('admin_post_wp_advertising_save_community_shortcode', [$this->admin, 'handle_save_community_shortcode']);
         add_action('admin_post_wp_advertising_refresh_license', [$this->admin, 'handle_refresh_license']);
-        add_action('admin_post_wp_advertising_activate_license', [$this->admin, 'handle_activate_license']);
+
+        add_action('admin_post_wp_advertising_upgrade_pro', [$this->admin, 'handle_upgrade_pro']);
 
         add_action('admin_post_nopriv_wp_advertising_embed_js', [$this->public, 'serve_embed_js']);
         add_action('admin_post_wp_advertising_embed_js', [$this->public, 'serve_embed_js']);
@@ -60,8 +63,18 @@ final class WPA_Plugin {
         add_shortcode('wp_advertising_community_ad', [$this->public, 'shortcode_community_ad']);
     }
 
+    public function register_cron_schedules($schedules) {
+        if (!isset($schedules['wpa_every_4_minutes'])) {
+            $schedules['wpa_every_4_minutes'] = [
+                'interval' => 240,
+                'display' => __('Every 4 Minutes', 'wp-advertising'),
+            ];
+        }
+        return $schedules;
+    }
+
     public function scheduled_refresh_entitlement() {
-        if (in_array($this->license->status(), [WPA_License::STATUS_ACTIVE, WPA_License::STATUS_TRIAL, WPA_License::STATUS_GRACE], true)) {
+        if (in_array($this->license->status(), [WPA_License::STATUS_ACTIVE, WPA_License::STATUS_TRIAL, WPA_License::STATUS_GRACE, WPA_License::STATUS_EXPIRED], true)) {
             $this->license->maybe_validate(false);
         }
     }

@@ -43,19 +43,13 @@ final class WPA_Public_Endpoints {
   var jsonpUrl = <?php echo wp_json_encode($render_jsonp_url); ?>;
   var initialized = false;
 
-  function currentScript(){
-    if(document.currentScript) return document.currentScript;
-    var scripts=document.getElementsByTagName('script');
-    return scripts[scripts.length-1] || null;
-  }
-
   function appendScript(script){
     (document.head || document.body || document.documentElement).appendChild(script);
   }
 
   function injectStyles(){
     if(document.getElementById('wpa-embed-styles')) return;
-    var css='.wpa-card{--wpa-bg:#111827;--wpa-fg:#fff;--wpa-muted:#c7cedb;--wpa-soft:#202938;--wpa-btn-bg:#fff;--wpa-btn-fg:#111827;--wpa-border:rgba(255,255,255,.12);--wpa-shadow:0 18px 45px rgba(0,0,0,.24);box-sizing:border-box;display:block;width:100%;max-width:380px;padding:18px;border-radius:24px;background:var(--wpa-bg);color:var(--wpa-fg);text-decoration:none;font-family:Inter,Arial,sans-serif;border:1px solid var(--wpa-border);box-shadow:var(--wpa-shadow);overflow:hidden}.wpa-card *{box-sizing:border-box}.wpa-theme-light{--wpa-bg:#fff;--wpa-fg:#111827;--wpa-muted:#5b6472;--wpa-soft:#f1f5f9;--wpa-btn-bg:#111827;--wpa-btn-fg:#fff;--wpa-border:#e5e7eb;--wpa-shadow:0 18px 35px rgba(15,23,42,.12)}.wpa-theme-warm{--wpa-bg:#fff7ed;--wpa-fg:#321a07;--wpa-muted:#7c4a22;--wpa-soft:#fed7aa;--wpa-btn-bg:#ea580c;--wpa-btn-fg:#fff;--wpa-border:#fdba74;--wpa-shadow:0 18px 35px rgba(234,88,12,.18)}.wpa-theme-neon{--wpa-bg:#09090b;--wpa-fg:#f5f3ff;--wpa-muted:#c4b5fd;--wpa-soft:#18181b;--wpa-btn-bg:#a3e635;--wpa-btn-fg:#101010;--wpa-border:rgba(163,230,53,.34);--wpa-shadow:0 18px 45px rgba(163,230,53,.16)}.wpa-theme-minimal{--wpa-bg:#f8fafc;--wpa-fg:#0f172a;--wpa-muted:#64748b;--wpa-soft:#e2e8f0;--wpa-btn-bg:#0f172a;--wpa-btn-fg:#f8fafc;--wpa-border:#cbd5e1;--wpa-shadow:none;border-radius:12px}.wpa-kicker{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wpa-muted);margin-bottom:12px;font-weight:800}.wpa-image-wrap{display:block;aspect-ratio:1/1;width:100%;border-radius:18px;overflow:hidden;background:var(--wpa-soft);margin-bottom:14px}.wpa-image-wrap img{display:block;width:100%;height:100%;object-fit:cover}.wpa-image-placeholder{display:flex;align-items:center;justify-content:center;color:var(--wpa-muted);font-weight:800}.wpa-title{display:block;font-size:19px;line-height:1.12;font-weight:900;margin-bottom:8px;color:var(--wpa-fg)}.wpa-body{display:block;color:var(--wpa-muted);font-size:13px;line-height:1.45;margin-bottom:12px}.wpa-price{display:block;color:var(--wpa-fg);font-size:15px;font-weight:800;margin-bottom:14px}.wpa-cta{display:inline-flex;align-items:center;border-radius:999px;background:var(--wpa-btn-bg);color:var(--wpa-btn-fg);padding:9px 14px;font-size:13px;font-weight:900}.wpa-footer{display:block}';
+    var css='.wpa-card{--wpa-bg:#111827;--wpa-fg:#fff;--wpa-muted:#c7cedb;--wpa-soft:#202938;--wpa-btn-bg:#fff;--wpa-btn-fg:#111827;--wpa-border:rgba(255,255,255,.12);--wpa-shadow:0 18px 45px rgba(0,0,0,.24);box-sizing:border-box;display:block;width:100%;max-width:380px;padding:18px;border-radius:24px;background:var(--wpa-bg);color:var(--wpa-fg);text-decoration:none;font-family:Inter,Arial,sans-serif;border:1px solid var(--wpa-border);box-shadow:var(--wpa-shadow);overflow:hidden}.wpa-card *{box-sizing:border-box}.wpa-theme-light{--wpa-bg:#fff;--wpa-fg:#111827;--wpa-muted:#5b6472;--wpa-soft:#f1f5f9;--wpa-btn-bg:#111827;--wpa-btn-fg:#fff;--wpa-border:#e5e7eb;--wpa-shadow:0 18px 35px rgba(15,23,42,.12)}.wpa-theme-warm{--wpa-bg:#fff7ed;--wpa-fg:#321a07;--wpa-muted:#7c4a22;--wpa-soft:#fed7aa;--wpa-btn-bg:#ea580c;--wpa-btn-fg:#fff;--wpa-border:#fdba74;--wpa-shadow:0 18px 35px rgba(234,88,12,.18)}.wpa-theme-neon{--wpa-bg:#09090b;--wpa-fg:#f5f3ff;--wpa-muted:#c4b5fd;--wpa-soft:#18181b;--wpa-btn-bg:#a3e635;--wpa-btn-fg:#101010;--wpa-border:rgba(163,230,53,.34);--wpa-shadow:0 18px 45px rgba(163,230,53,.16)}.wpa-theme-minimal{--wpa-bg:#f8fafc;--wpa-fg:#0f172a;--wpa-muted:#64748b;--wpa-soft:#e2e8f0;--wpa-btn-bg:#0f172a;--wpa-btn-fg:#f8fafc;--wpa-border:#cbd5e1;--wpa-shadow:none;border-radius:12px}.wpa-kicker{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wpa-muted);margin-bottom:12px;font-weight:800}.wpa-image-wrap{display:block;aspect-ratio:1/1;width:100%;border-radius:18px;overflow:hidden;background:var(--wpa-soft);margin-bottom:14px}.wpa-image-wrap img{display:block;width:100%;height:100%;object-fit:cover}.wpa-image-placeholder{display:flex;align-items:center;justify-content:center;color:var(--wpa-muted);font-weight:800}.wpa-title{display:block;font-size:19px;line-height:1.12;font-weight:900;margin-bottom:8px;color:var(--wpa-fg)}.wpa-body{display:block;color:var(--wpa-muted);font-size:13px;line-height:1.45;margin-bottom:12px}.wpa-price{display:block;color:var(--wpa-fg);font-size:15px;font-weight:800;margin-bottom:14px}.wpa-cta{display:inline-flex;align-items:center;border-radius:999px;background:var(--wpa-btn-bg);color:var(--wpa-btn-fg);padding:9px 14px;font-size:13px;font-weight:900}.wpa-footer{display:block}.wpa-skel{display:block;width:100%;max-width:380px;padding:18px;border-radius:24px;background:#111827;box-sizing:border-box}.wpa-skel-r{border-radius:6px;background:linear-gradient(90deg,#1c2538 25%,#273347 50%,#1c2538 75%);background-size:200% 100%;animation:wpa-pulse 1.4s ease-in-out infinite}.wpa-skel-img{aspect-ratio:1/1;width:100%;border-radius:18px;overflow:hidden;margin-bottom:14px}.wpa-skel-t{height:14px;margin-bottom:10px}.wpa-skel-t2{height:12px;width:75%;margin-bottom:8px}.wpa-skel-t3{height:10px;width:45%}@keyframes wpa-pulse{0%{background-position:200% 0}to{background-position:-200% 0}}';
     var style=document.createElement('style');
     style.id='wpa-embed-styles';
     style.textContent=css;
@@ -98,6 +92,11 @@ final class WPA_Public_Endpoints {
     });
   }
 
+  function injectSkeleton(el){
+    if(!el || el.querySelector('.wpa-skel')) return;
+    el.innerHTML='<div class="wpa-skel"><div class="wpa-skel-r wpa-skel-img"></div><div class="wpa-skel-r wpa-skel-t"></div><div class="wpa-skel-r wpa-skel-t2"></div><div class="wpa-skel-r wpa-skel-t3"></div></div>';
+  }
+
   function insertAd(el,data,ref){
     if(!el) return;
     el.removeAttribute('data-wpa-loading');
@@ -117,11 +116,16 @@ final class WPA_Public_Endpoints {
     var cb='__wpaEmbed'+Date.now()+Math.floor(Math.random()*100000);
     var script=document.createElement('script');
     var done=false;
+
+    function cleanup(){
+      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
+      if(script.parentNode){ script.parentNode.removeChild(script); }
+    }
+
     var timer=window.setTimeout(function(){
       if(done) return;
       done=true;
-      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
-      if(script.parentNode){ script.parentNode.removeChild(script); }
+      cleanup();
       if(el){ el.removeAttribute('data-wpa-loading'); }
       warn(el,'jsonp_timeout');
     }, 8000);
@@ -131,15 +135,14 @@ final class WPA_Public_Endpoints {
       done=true;
       window.clearTimeout(timer);
       insertAd(el,data,ref);
-      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
-      if(script.parentNode){ script.parentNode.removeChild(script); }
+      cleanup();
     };
     script.async=true;
     script.onerror=function(){
       if(done) return;
       done=true;
       window.clearTimeout(timer);
-      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
+      cleanup();
       if(el){ el.removeAttribute('data-wpa-loading'); }
       warn(el,'jsonp_load_failed');
     };
@@ -154,9 +157,10 @@ final class WPA_Public_Endpoints {
     var ref=safeReferrer();
     var track=trackingRequested(el) && !!ref;
     el.setAttribute('data-wpa-loading','1');
-
-    // JSONP is the primary path because it works reliably from static HTML,
-    // file:// previews, builders, and third-party sites without CORS edge cases.
+    // Show skeleton immediately; swap for real content when JSONP resolves.
+    // WordPress transient caching means the render endpoint almost never calls
+    // the ad-server on the hot path — JSONP is a fast local round trip.
+    injectSkeleton(el);
     renderWithJsonp(el,zone,adId,ref,track);
   }
 
@@ -238,7 +242,12 @@ final class WPA_Public_Endpoints {
     public function serve_render() {
         $this->send_public_cors_headers();
         $this->maybe_exit_options_request();
-        wp_send_json($this->build_render_response());
+        $response = $this->build_render_response();
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, max-age=0');
+        echo wp_json_encode($response);
+        $this->maybe_do_background_community_refresh();
+        exit;
     }
 
     public function serve_render_jsonp() {
@@ -246,10 +255,28 @@ final class WPA_Public_Endpoints {
         if (!$callback) {
             $callback = 'wpAdvertisingEmbed';
         }
+        $response = $this->build_render_response();
         header('Content-Type: application/javascript; charset=utf-8');
         header('Cache-Control: no-store, max-age=0');
-        echo $callback . '(' . wp_json_encode($this->build_render_response()) . ');';
+        echo $callback . '(' . wp_json_encode($response) . ');';
+        $this->maybe_do_background_community_refresh();
         exit;
+    }
+
+    // If get_community_payload() served stale content and acquired the refresh lock,
+    // flush the response to the visitor first then refresh in-process (PHP-FPM) or
+    // hand off to WP-Cron (other SAPI/webservers).
+    private function maybe_do_background_community_refresh() {
+        $zone = $this->repo->take_pending_community_refresh_zone();
+        if ($zone === null) {
+            return;
+        }
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+            $this->repo->execute_background_community_refresh($zone);
+        } else {
+            $this->repo->defer_community_refresh_to_cron($zone);
+        }
     }
 
     public function track_impression() {

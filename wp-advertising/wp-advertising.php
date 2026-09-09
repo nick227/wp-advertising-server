@@ -88,6 +88,11 @@ define('WPA_RETENTION_DAYS_OPTION', 'wp_advertising_retention_days');
 
 define('WPA_RETENTION_HOOK', 'wp_advertising_cleanup_events');
 
+define('WPA_COMMUNITY_CACHE_SCHEMA', 2);
+define('WPA_COMMUNITY_FRESH_TTL',    5 * MINUTE_IN_SECONDS);
+define('WPA_COMMUNITY_STALE_TTL',    60 * MINUTE_IN_SECONDS);
+define('WPA_COMMUNITY_LOCK_TTL',     30);
+
 
 
 require_once WPA_PLUGIN_DIR . 'includes/class-wpa-installer.php';

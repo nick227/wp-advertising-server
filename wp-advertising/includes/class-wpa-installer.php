@@ -13,12 +13,21 @@ final class WPA_Installer {
         if (!wp_next_scheduled('wp_advertising_refresh_entitlement')) {
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'wp_advertising_refresh_entitlement');
         }
+        if (!wp_next_scheduled('wp_advertising_prefetch_community_ad')) {
+            wp_schedule_event(time() + 240, 'wpa_every_4_minutes', 'wp_advertising_prefetch_community_ad');
+        }
         self::seed_default_house_ad();
     }
 
     public static function deactivate() {
         self::clear_retention_cleanup();
         wp_clear_scheduled_hook('wp_advertising_refresh_entitlement');
+        wp_clear_scheduled_hook('wp_advertising_prefetch_community_ad');
+        // Remove any orphaned refresh locks so reactivation starts clean.
+        global $wpdb;
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE 'wp\_advertising\_community\_lock\_%' ESCAPE '\\\\'"
+        );
     }
 
     public static function maybe_upgrade() {
@@ -29,6 +38,9 @@ final class WPA_Installer {
         self::schedule_retention_cleanup();
         if (!wp_next_scheduled('wp_advertising_refresh_entitlement')) {
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'wp_advertising_refresh_entitlement');
+        }
+        if (!wp_next_scheduled('wp_advertising_prefetch_community_ad')) {
+            wp_schedule_event(time() + 240, 'wpa_every_4_minutes', 'wp_advertising_prefetch_community_ad');
         }
         self::seed_default_house_ad();
     }
