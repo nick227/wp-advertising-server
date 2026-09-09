@@ -138,6 +138,22 @@ final class WPA_Admin_Pages {
         exit;
     }
 
+    public function handle_activate_license() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Permission denied.', 'wp-advertising'));
+        }
+        check_admin_referer('wp_advertising_activate_license');
+        $key    = sanitize_text_field(wp_unslash($_POST['license_key'] ?? ''));
+        $result = $this->license->activate_license($key);
+        if (is_wp_error($result)) {
+            update_option(WPA_LICENSE_LAST_ERROR_OPTION, $result->get_error_message(), false);
+            wp_safe_redirect(add_query_arg(['page' => 'wp-advertising'], admin_url('admin.php')));
+        } else {
+            wp_safe_redirect(add_query_arg(['page' => 'wp-advertising', 'key_activated' => 1], admin_url('admin.php')));
+        }
+        exit;
+    }
+
 
 
     public function handle_upgrade_pro() {
@@ -304,35 +320,43 @@ final class WPA_Admin_Pages {
 
             <div class="wpa-builder-grid wpa-performance-grid">
                 <div class="wpa-performance-stack">
-                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="wpa-panel wpa-main-controls">
-                        <?php wp_nonce_field('wp_advertising_save_main_settings'); ?>
-                        <input type="hidden" name="action" value="wp_advertising_save_main_settings">
-
-                        <input type="hidden" name="start_date" value="<?php echo esc_attr($start_date); ?>">
-                        <input type="hidden" name="end_date" value="<?php echo esc_attr($end_date); ?>">
-                        <input type="hidden" name="per_page" value="<?php echo esc_attr($per_page); ?>">
-
+                    <div class="wpa-panel wpa-main-controls">
+                        <?php
+                        $lic_status   = $this->license->status();
+                        $lic_eligible = $this->license->is_network_eligible();
+                        $lic_is_pro   = $lic_status === WPA_License::STATUS_ACTIVE && $lic_eligible;
+                        $lic_key      = $this->license->license_key();
+                        ?>
                         <div class="wpa-main-row">
                             <div class="wpa-row-title"><?php esc_html_e('License', 'wp-advertising'); ?></div>
                             <div class="wpa-row-body">
-                                <p style="margin:0 0 0.5rem">
-                                    <?php
-                                    echo esc_html(sprintf(
-                                        /* translators: 1: status, 2: access until timestamp or dash */
-                                        __('Status: %1$s · Access until: %2$s', 'wp-advertising'),
-                                        $this->license->status(),
-                                        $this->license->network_access_until() ? gmdate('Y-m-d H:i', $this->license->network_access_until()) . ' UTC' : '—'
-                                    ));
-                                    ?>
+                                <?php if ($lic_is_pro) : ?>
+                                <p style="margin:0;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                                    <?php if ($lic_key) : ?><code style="font-size:0.85rem"><?php echo esc_html($lic_key); ?></code><?php endif; ?>
+                                    <strong style="color:#166534;background:#dcfce7;border:1px solid #86efac;padding:0.2rem 0.5rem;border-radius:3px;font-size:0.75rem;letter-spacing:0.05em"><?php esc_html_e('ACTIVE', 'wp-advertising'); ?></strong>
                                 </p>
-                                <p style="margin:0 0 0.75rem;color:#646970">
-                                    <?php esc_html_e('Trial starts when you enable Community. Upgrade to Pro to continue network access after the trial.', 'wp-advertising'); ?>
+                                <p style="margin:0.35rem 0 0;color:#646970;font-size:0.85rem">
+                                    <?php echo esc_html(sprintf(
+                                        __('Access until %s UTC', 'wp-advertising'),
+                                        $this->license->network_access_until() ? gmdate('Y-m-d H:i', $this->license->network_access_until()) : '—'
+                                    )); ?>
+                                </p>
+                                <?php else : ?>
+                                <p style="margin:0 0 0.5rem;color:#646970">
+                                    <?php
+                                    if ($lic_status === WPA_License::STATUS_TRIAL && $lic_eligible) {
+                                        esc_html_e('Trial active — upgrade to keep access after it ends.', 'wp-advertising');
+                                    } elseif ($lic_status === WPA_License::STATUS_EXPIRED) {
+                                        esc_html_e('Trial expired. Enter a license key or upgrade to restore access.', 'wp-advertising');
+                                    } else {
+                                        esc_html_e('No active license. Start a trial or enter a license key.', 'wp-advertising');
+                                    }
+                                    ?>
                                 </p>
                                 <?php
                                 $license_error = (string) get_option(WPA_LICENSE_LAST_ERROR_OPTION, '');
-                                if ($license_error) :
-                                    ?>
-                                    <p style="margin:0 0 0.75rem;color:#b32d2e"><small><?php echo esc_html($license_error); ?></small></p>
+                                if ($license_error) : ?>
+                                    <p style="margin:0 0 0.5rem;color:#b32d2e"><small><?php echo esc_html($license_error); ?></small></p>
                                 <?php endif; ?>
                                 <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
                                     <a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=wp_advertising_upgrade_pro'), 'wp_advertising_upgrade_pro')); ?>">
@@ -342,9 +366,34 @@ final class WPA_Admin_Pages {
                                         <?php esc_html_e('Refresh', 'wp-advertising'); ?>
                                     </a>
                                 </div>
+                                <?php endif; ?>
                             </div>
                             <div class="wpa-row-actions"></div>
                         </div>
+                        <?php if (!$lic_is_pro) : ?>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:contents">
+                            <?php wp_nonce_field('wp_advertising_activate_license'); ?>
+                            <input type="hidden" name="action" value="wp_advertising_activate_license">
+                            <div class="wpa-main-row">
+                                <div class="wpa-row-title"><?php esc_html_e('License Key', 'wp-advertising'); ?></div>
+                                <div class="wpa-row-body">
+                                    <div style="display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap">
+                                        <input type="text" name="license_key" class="regular-text" placeholder="lic_…" style="max-width:280px" value="<?php echo esc_attr($lic_key); ?>">
+                                        <button type="submit" class="button"><?php esc_html_e('Activate', 'wp-advertising'); ?></button>
+                                    </div>
+                                    <p class="description"><?php esc_html_e('Have a license key? Enter it to activate Pro.', 'wp-advertising'); ?></p>
+                                </div>
+                                <div class="wpa-row-actions"></div>
+                            </div>
+                        </form>
+                        <?php endif; ?>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <?php wp_nonce_field('wp_advertising_save_main_settings'); ?>
+                        <input type="hidden" name="action" value="wp_advertising_save_main_settings">
+
+                        <input type="hidden" name="start_date" value="<?php echo esc_attr($start_date); ?>">
+                        <input type="hidden" name="end_date" value="<?php echo esc_attr($end_date); ?>">
+                        <input type="hidden" name="per_page" value="<?php echo esc_attr($per_page); ?>">
 
                         <div class="wpa-main-row">
                             <div class="wpa-row-title"><?php esc_html_e('Community Ads', 'wp-advertising'); ?></div>
@@ -385,6 +434,7 @@ final class WPA_Admin_Pages {
                             <div class="wpa-row-actions"><button type="submit" class="button button-primary"><?php esc_html_e('Apply', 'wp-advertising'); ?></button></div>
                         </div>
                     </form>
+                    </div>
 
                     <section class="wpa-panel wpa-performance-main">
                     <div class="wpa-panel-header">
@@ -618,21 +668,21 @@ final class WPA_Admin_Pages {
         if (!empty($_GET['tracking_updated'])) {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Tracking setting updated.', 'wp-advertising') . '</p></div>';
         }
-        if (!empty($_GET['license_refreshed'])) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Entitlement refreshed.', 'wp-advertising') . '</p></div>';
-        }
         if (!empty($_GET['license_activated'])) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Payment received. If your Pro features are not instantly available, the activation is still syncing in the background.', 'wp-advertising') . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Pro license confirmed.', 'wp-advertising') . '</p></div>';
+        }
+        if (!empty($_GET['key_activated'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('License key accepted. Pro is now active.', 'wp-advertising') . '</p></div>';
+        }
+        if (!empty($_GET['license_refreshed'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('License status updated.', 'wp-advertising') . '</p></div>';
         }
         if (!empty($_GET['checkout_canceled'])) {
             echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html__('Checkout was canceled.', 'wp-advertising') . '</p></div>';
         }
         if (!empty($_GET['checkout_error'])) {
             $msg = sanitize_text_field(wp_unslash($_GET['checkout_error']));
-            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html(sprintf(__('Checkout error: %s', 'wp-advertising'), $msg)) . '</p></div>';
-        }
-        if (!empty($_GET['license_error'])) {
-            echo '<div class="notice notice-error is-dismissible"><p style="color: black;">' . esc_html__('License activation failed. Check the entitlement error message below.', 'wp-advertising') . '</p></div>';
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($msg) . '</p></div>';
         }
         if (!$this->repo->wc_active()) {
             echo '<div class="notice notice-warning"><p>' . esc_html__('WooCommerce is not active. Custom ads still work, but WooCommerce product and random product ads require WooCommerce.', 'wp-advertising') . '</p></div>';

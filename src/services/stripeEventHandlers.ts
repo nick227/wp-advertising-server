@@ -81,7 +81,12 @@ async function syncSubscription(db: Prisma.TransactionClient, subscriptionId: st
 
     if (!site && siteUrl) {
       site = await db.communitySite.findFirst({ where: { OR: [{ siteUrl }, { siteDomain }] } });
-      if (!site) site = await db.communitySite.create({ data: { siteUrl, siteDomain, publicKey: `pub_${nanoid(32)}`, lastSeenAt: now } });
+      const ownerEmail = invoice?.customer_email?.toLowerCase() ?? undefined;
+      if (!site) {
+        site = await db.communitySite.create({ data: { siteUrl, siteDomain, publicKey: `pub_${nanoid(32)}`, ownerEmail, lastSeenAt: now } });
+      } else if (ownerEmail && !site.ownerEmail) {
+        site = await db.communitySite.update({ where: { id: site.id }, data: { ownerEmail } });
+      }
     }
 
     if (!site) {

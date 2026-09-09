@@ -163,6 +163,10 @@ final class WPA_Repository {
         }
         if (is_array($result)) {
             $body = $result['body'] ?? [];
+            // Zod validation errors leak raw schema details; surface a useful action instead.
+            if (($body['error']['code'] ?? '') === 'VALIDATION_ERROR') {
+                return __('Community API rejected the request payload — the plugin and server may be out of sync. Try reconnecting.', 'wp-advertising');
+            }
             if (isset($body['error']['message'])) {
                 return sanitize_text_field($body['error']['message']);
             }
@@ -186,9 +190,10 @@ final class WPA_Repository {
             return $credentials;
         }
         $result = $this->community_api_request('POST', '/sites/register', [
-            'siteUrl' => home_url('/'),
-            'siteName' => get_bloginfo('name') ?: wp_parse_url(home_url('/'), PHP_URL_HOST),
+            'siteUrl'      => home_url('/'),
+            'siteName'     => get_bloginfo('name') ?: wp_parse_url(home_url('/'), PHP_URL_HOST),
             'pluginVersion' => WPA_VERSION,
+            'ownerEmail'   => get_bloginfo('admin_email'),
         ]);
         if (is_wp_error($result) || !is_array($result) || (int) ($result['code'] ?? 0) < 200 || (int) ($result['code'] ?? 0) >= 300) {
             $this->set_community_sync_status('error', $this->community_api_error_message($result));
@@ -310,7 +315,7 @@ final class WPA_Repository {
         $auth = $this->community_auth_payload();
         $path = $enabled ? '/sites/opt-in' : '/sites/opt-out';
         $result = $this->community_api_request('POST', $path, $auth);
-        if (is_array($result) && (int) ($result['code'] ?? 0) === 403) {
+        if (is_array($result) && in_array((int) ($result['code'] ?? 0), [403, 404], true)) {
             $this->clear_community_credentials();
             if (!$enabled) {
                 $this->set_community_sync_status('disabled');

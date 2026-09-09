@@ -222,10 +222,11 @@ export function createPublicSiteRouter() {
         res.redirect(302, '/community');
         return;
       }
+      const prefillEmail = typeof req.query.email === 'string' ? req.query.email : undefined;
       res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(renderPage(
         { title: 'Register — Community', description: 'Create a WP Advertising Community account.', path: '/community/register' },
-        communityRegisterPage(),
+        communityRegisterPage(undefined, prefillEmail),
       ));
     } catch (error) {
       next(error);
@@ -237,7 +238,7 @@ export function createPublicSiteRouter() {
       const input = registerSchema.parse(req.body);
       const user = await registerCommunityUser(input);
       setSessionCookie(res, createSessionToken(user.id));
-      res.redirect(303, '/community');
+      res.redirect(303, req.query.from === 'checkout' ? '/profile' : '/community');
     } catch (error) {
       if (error instanceof HttpError || error instanceof ZodError) {
         res.status(error instanceof HttpError ? error.status : 400).type('html').send(renderPage(
@@ -348,11 +349,18 @@ export function createPublicSiteRouter() {
       if (!session) { res.redirect(302, '/community/login'); return; }
       const dbUser = await getCommunityUserById(session.userId);
       if (!dbUser) { res.redirect(302, '/community/login'); return; }
-      const licenses = await prisma.license.findMany({
-        where: { customerEmail: dbUser.email },
-        include: { activations: { where: { deactivatedAt: null } } },
-        orderBy: { createdAt: 'desc' },
-      });
+      const [licenses, ownedSites] = await Promise.all([
+        prisma.license.findMany({
+          where: { customerEmail: dbUser.email },
+          include: { activations: { where: { deactivatedAt: null } } },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.communitySite.findMany({
+          where: { ownerEmail: dbUser.email.toLowerCase() },
+          select: { id: true, siteUrl: true, siteDomain: true, siteName: true, networkStatus: true, networkAccessUntil: true, optedIn: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
       const navUser: NavUser = { displayName: dbUser.displayName, email: dbUser.email };
       res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(renderPage(
@@ -360,9 +368,10 @@ export function createPublicSiteRouter() {
         profilePage(navUser, licenses.map(l => ({
           licenseKey: l.licenseKey,
           status: l.status,
+          purchasedAt: l.createdAt,
           paidThrough: l.paidThrough,
           activatedSites: l.activations.map(a => a.domainSnapshot),
-        }))),
+        })), ownedSites),
         navUser,
       ));
     } catch (error) {

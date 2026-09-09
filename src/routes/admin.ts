@@ -9,6 +9,8 @@ import { adminAuth } from '../middleware/adminAuth.js';
 import { config } from '../config.js';
 import {
   adStatusSchema,
+  createLicense,
+  createLicenseSchema,
   extendTrial,
   forceOptOut,
   grantPro,
@@ -143,6 +145,14 @@ adminRouter.get('/admin/licenses', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+adminRouter.post('/admin/licenses', async (req, res, next) => {
+  try {
+    const input = createLicenseSchema.parse(req.body ?? {});
+    const license = await createLicense(input);
+    res.status(201).json({ ok: true, requestId: req.requestId, license });
+  } catch (error) { next(error); }
 });
 
 adminRouter.post('/admin/sites/:siteId/extend-trial', async (req, res, next) => {

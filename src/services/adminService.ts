@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nanoid } from 'nanoid';
 import { prisma } from '../lib/prisma.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { rotationCache } from './rotationCache.js';
@@ -124,4 +125,28 @@ async function requireSite(siteId: string) {
   const site = await prisma.communitySite.findUnique({ where: { id: siteId } });
   if (!site) throw notFound('Community site not found');
   return site;
+}
+
+export const createLicenseSchema = z.object({
+  licenseKey: z.string().trim().regex(/^lic_[a-zA-Z0-9_]+$/).min(8).max(96).optional(),
+  customerEmail: z.string().email().max(255).optional(),
+  notes: z.string().max(500).optional(),
+  expiresInDays: z.coerce.number().int().min(1).max(3650).optional().default(365),
+  maxActivations: z.coerce.number().int().min(1).max(100).optional().default(1),
+});
+
+export async function createLicense(input: z.infer<typeof createLicenseSchema>) {
+  const licenseKey = input.licenseKey ?? `lic_${nanoid(32)}`;
+  const expiresAt = new Date(Date.now() + (input.expiresInDays ?? 365) * 86400000);
+  return prisma.license.create({
+    data: {
+      licenseKey,
+      status: 'ACTIVE',
+      expiresAt,
+      maxActivations: input.maxActivations ?? 1,
+      customerEmail: input.customerEmail ?? null,
+      notes: input.notes ?? null,
+      stripeSyncedAt: null,
+    },
+  });
 }

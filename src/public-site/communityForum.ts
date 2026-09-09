@@ -41,7 +41,9 @@ export function communityLoginPage(notice?: string): string {
   </div></section>`;
 }
 
-export function communityRegisterPage(notice?: string): string {
+export function communityRegisterPage(notice?: string, prefillEmail?: string): string {
+  const emailValue = prefillEmail ? ` value="${escapeHtml(prefillEmail)}"` : '';
+  const action = prefillEmail ? '/community/register?from=checkout' : '/community/register';
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Community</p>
@@ -50,9 +52,9 @@ export function communityRegisterPage(notice?: string): string {
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
     ${notice ? `<div class="notice">${escapeHtml(notice)}</div>` : ''}
-    <form method="post" action="/community/register" style="display:grid;gap:0.75rem;max-width:28rem">
+    <form method="post" action="${action}" style="display:grid;gap:0.75rem;max-width:28rem">
       <label>Display name <input name="displayName" required maxlength="120" autocomplete="nickname" style="display:block;width:100%;padding:0.55rem;font:inherit"></label>
-      <label>Email <input name="email" type="email" required autocomplete="email" style="display:block;width:100%;padding:0.55rem;font:inherit"></label>
+      <label>Email <input name="email" type="email" required autocomplete="email"${emailValue} style="display:block;width:100%;padding:0.55rem;font:inherit"></label>
       <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password" style="display:block;width:100%;padding:0.55rem;font:inherit"></label>
       <button class="btn btn-primary" type="submit">Create account</button>
     </form>

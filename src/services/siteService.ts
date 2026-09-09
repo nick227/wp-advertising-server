@@ -10,6 +10,7 @@ export const registerSiteSchema = z.object({
   siteUrl: publicHttpUrlSchema,
   siteName: z.string().max(255).optional(),
   pluginVersion: z.string().max(48).optional(),
+  ownerEmail: z.string().email().max(255).optional(),
 });
 
 export const authSiteSchema = z.object({
@@ -32,6 +33,8 @@ export async function registerSite(input: z.infer<typeof registerSiteSchema>) {
     where: { OR: [{ siteUrl }, { siteDomain }] },
   });
 
+  const ownerEmail = input.ownerEmail ? input.ownerEmail.toLowerCase() : undefined;
+
   if (existing) {
     const updated = await prisma.communitySite.update({
       where: { id: existing.id },
@@ -40,6 +43,7 @@ export async function registerSite(input: z.infer<typeof registerSiteSchema>) {
         siteDomain,
         siteName: input.siteName ?? existing.siteName,
         pluginVersion: input.pluginVersion ?? existing.pluginVersion,
+        ownerEmail: ownerEmail ?? existing.ownerEmail ?? undefined,
         lastSeenAt: new Date(),
       },
     });
@@ -63,6 +67,7 @@ export async function registerSite(input: z.infer<typeof registerSiteSchema>) {
       siteDomain,
       siteName: input.siteName,
       pluginVersion: input.pluginVersion,
+      ownerEmail,
       publicKey,
       lastSeenAt: new Date(),
     },

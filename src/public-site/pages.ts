@@ -150,30 +150,69 @@ export function checkoutSuccessPage(options?: {
   pending?: boolean;
   email?: string | null;
 }): string {
-  const licenseBlock = options?.licenseKey
-    ? `<p><strong>License key</strong></p><p><code>${escapeHtml(options.licenseKey)}</code></p>
-       <p class="muted">Copy this into WP Advertising → Network entitlement → License key → Activate Pro.</p>`
-    : options?.pending
-      ? '<div class="notice">Payment received. License provisioning is still in progress — refresh this page in a few seconds.</div>'
-      : '<div class="notice">Open this page with a Stripe <code>session_id</code> after Checkout, or check your email once provisioning completes.</div>';
+  const email = options?.email ?? '';
+  const emailParam = email ? `?email=${encodeURIComponent(email)}` : '';
+
+  if (options?.pending) {
+    return `
+  <section class="page-hero"><div class="wrap">
+    <p class="brand-mark">Checkout</p>
+    <h1>Payment received.</h1>
+    <p class="hero-lead">Your license is being provisioned — this usually takes a few seconds.</p>
+  </div></section>
+  <section class="section" style="padding-top:0"><div class="wrap prose">
+    <p>Refresh this page in a moment to see your license key and next steps.</p>
+    ${email ? `<p style="color:var(--ink-muted)">Receipt: ${escapeHtml(email)}</p>` : ''}
+  </div></section>`;
+  }
+
+  if (!options?.licenseKey) {
+    return `
+  <section class="page-hero"><div class="wrap">
+    <p class="brand-mark">Checkout</p>
+    <h1>Payment received.</h1>
+  </div></section>
+  <section class="section" style="padding-top:0"><div class="wrap prose">
+    <p>Open this page with a valid Stripe <code>session_id</code> to see your license details, or check your email once provisioning completes.</p>
+  </div></section>`;
+  }
+
+  const keyBlock = `
+    <div style="margin-bottom:1.5rem;padding:1rem;background:#f0fdf4;border:1px solid #86efac;border-radius:0.5rem">
+      <p style="margin:0 0 0.35rem;font-size:0.875rem;color:#166534"><strong>Your license key</strong> (saved to your account)</p>
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+        <code style="font-size:0.9rem">${escapeHtml(options.licenseKey)}</code>
+        <button type="button" onclick="navigator.clipboard.writeText('${escapeHtml(options.licenseKey)}').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" style="font-size:0.75rem;padding:0.2rem 0.5rem;cursor:pointer">Copy</button>
+      </div>
+    </div>`;
+
+  const accountCta = email ? `
+    <div style="margin-top:1.5rem;padding:1rem;background:#f8fafc;border:1px solid var(--line);border-radius:0.5rem">
+      <p style="margin:0 0 0.35rem"><strong>View this license in your account</strong></p>
+      <p style="margin:0 0 0.75rem;color:var(--ink-muted);font-size:0.9rem">Log in or create a free account with <strong>${escapeHtml(email)}</strong> to manage your license and see activated sites.</p>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/community/register${emailParam}">Create account</a>
+        <a class="btn btn-secondary" href="/community/login">Log in</a>
+      </div>
+    </div>` : '';
 
   return `
   <section class="page-hero"><div class="wrap">
     <p class="brand-mark">Checkout</p>
-    <h1>Payment received.</h1>
-    <p class="hero-lead">Activate Premium on the same WordPress site URL you entered at checkout.</p>
+    <h1>You're all set.</h1>
+    <p class="hero-lead">Your site has been activated. Install the plugin and it will connect automatically.</p>
   </div></section>
   <section class="section" style="padding-top:0"><div class="wrap prose">
-    ${licenseBlock}
-    ${options?.email ? `<p style="color:var(--ink-muted)">Receipt email: ${escapeHtml(options.email)}</p>` : ''}
+    ${keyBlock}
+    ${email ? `<p style="margin-bottom:1rem;color:var(--ink-muted)">Receipt: ${escapeHtml(email)}</p>` : ''}
     <ol>
-      <li>Install WP Advertising (<a href="/plugin/download">download</a>) on that WordPress site if it is not installed yet.</li>
-      <li>Set Community API URL to this service’s <code>/v1</code> base.</li>
-      <li>Paste the license key under Network entitlement and click <strong>Activate Pro</strong>.</li>
+      <li>Install WP Advertising on your WordPress site (<a href="/plugin/download">download</a>).</li>
+      <li>In WP Advertising settings, set <strong>Community API URL</strong> to this service's <code>/v1</code> endpoint.</li>
+      <li>The license status will show <strong>Active</strong> automatically — no key entry needed.</li>
     </ol>
-    <div class="hero-actions">
+    ${accountCta}
+    <div class="hero-actions" style="margin-top:1.5rem">
       <a class="btn btn-primary" href="/plugin/download">Get the plugin</a>
-      <a class="btn btn-secondary" href="/#pricing">Back to pricing</a>
     </div>
   </div></section>`;
 }
@@ -189,32 +228,76 @@ function escapeHtml(value: string): string {
 export type ProfileLicense = {
   licenseKey: string;
   status: string;
+  purchasedAt: Date;
   paidThrough: Date | null;
   activatedSites: string[];
 };
 
+export type ProfileSite = {
+  id: string;
+  siteUrl: string;
+  siteDomain: string;
+  siteName: string | null;
+  networkStatus: string | null;
+  networkAccessUntil: Date | null;
+  optedIn: boolean;
+  createdAt: Date;
+};
+
+function fmt(d: Date) {
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
 export function profilePage(
   user: { displayName: string; email: string },
   licenses: ProfileLicense[],
+  ownedSites: ProfileSite[] = [],
 ): string {
   const licenseContent = licenses.length === 0
     ? '<p style="color:var(--ink-muted)">No licenses found for this account.</p>'
     : licenses.map(l => {
-        const masked = `<code>••••${escapeHtml(l.licenseKey.slice(-8))}</code>`;
+        const statusColor = l.status === 'ACTIVE' ? '#166534' : '#9a3412';
+        const statusBg   = l.status === 'ACTIVE' ? '#dcfce7' : '#ffedd5';
+        const statusBorder = l.status === 'ACTIVE' ? '#86efac' : '#fdba74';
+        const badge = `<strong style="color:${statusColor};background:${statusBg};border:1px solid ${statusBorder};padding:0.15rem 0.45rem;border-radius:3px;font-size:0.75rem;letter-spacing:0.04em">${escapeHtml(l.status)}</strong>`;
+        const purchased = `<span style="color:var(--ink-muted);font-size:0.875rem">Purchased ${fmt(l.purchasedAt)}</span>`;
         const paid = l.paidThrough
-          ? `<span style="color:var(--ink-muted);font-size:0.9rem">Paid through ${new Date(l.paidThrough).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>`
+          ? `<span style="color:var(--ink-muted);font-size:0.875rem">· Active through ${fmt(l.paidThrough)}</span>`
           : '';
         const sites = l.activatedSites.length
-          ? `<p style="margin:0.5rem 0 0;font-size:0.875rem;color:var(--ink-muted)">${l.activatedSites.map(s => escapeHtml(s)).join(', ')}</p>`
+          ? `<p style="margin:0.5rem 0 0;font-size:0.875rem;color:var(--ink-muted)">Activated on: ${l.activatedSites.map(s => escapeHtml(s)).join(', ')}</p>`
           : '';
+        const keyId = `key-${escapeHtml(l.licenseKey.slice(-6))}`;
+        const keyBlock = `
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap">
+            <code id="${keyId}" style="font-size:0.8rem;letter-spacing:0.03em">${escapeHtml(l.licenseKey)}</code>
+            <button type="button" onclick="navigator.clipboard.writeText('${escapeHtml(l.licenseKey)}').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" style="font-size:0.75rem;padding:0.15rem 0.5rem;cursor:pointer">Copy</button>
+          </div>`;
         return `<div style="padding:1rem;border:1px solid var(--line);border-radius:0.5rem;margin-bottom:0.75rem">
-          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-            ${masked}
-            <strong>${escapeHtml(l.status)}</strong>
-            ${paid}
-          </div>${sites}
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+            ${badge} ${purchased} ${paid}
+          </div>
+          ${keyBlock}${sites}
         </div>`;
       }).join('');
+
+  const siteContent = ownedSites.length === 0 ? '' : `
+    <h2 style="margin-top:2rem">Registered Sites</h2>
+    ${ownedSites.map(s => {
+      const status = s.networkStatus ?? 'unregistered';
+      const accessLine = s.networkAccessUntil
+        ? `<span style="color:var(--ink-muted);font-size:0.875rem">Access until ${fmt(s.networkAccessUntil)}</span>`
+        : '';
+      return `<div style="padding:1rem;border:1px solid var(--line);border-radius:0.5rem;margin-bottom:0.75rem">
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+          <strong>${escapeHtml(s.siteName ?? s.siteDomain)}</strong>
+          <span style="color:var(--ink-muted);font-size:0.875rem">${escapeHtml(s.siteDomain)}</span>
+          <code style="font-size:0.75rem;background:#f1f5f9;padding:0.1rem 0.35rem;border-radius:3px">${escapeHtml(status)}</code>
+          ${accessLine}
+        </div>
+        <p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--ink-muted)">Registered ${fmt(s.createdAt)}${s.optedIn ? ' · Community enabled' : ''}</p>
+      </div>`;
+    }).join('')}`;
 
   return `
   <section class="page-hero"><div class="wrap">
@@ -225,6 +308,7 @@ export function profilePage(
   <section class="section" style="padding-top:0"><div class="wrap prose">
     <h2>Licenses</h2>
     ${licenseContent}
+    ${siteContent}
     <h2 style="margin-top:2rem">Sign out</h2>
     <form method="post" action="/community/logout" style="margin:0">
       <button class="btn btn-secondary" type="submit">Log out</button>

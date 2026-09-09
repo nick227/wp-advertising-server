@@ -78,6 +78,11 @@ final class WPA_License {
         $suggested = absint($payload['nextCheckSuggestedSec'] ?? self::CHECK_INTERVAL);
         update_option(WPA_LICENSE_NEXT_CHECK_OPTION, time() + max(3600, $suggested), false);
         update_option(WPA_LICENSE_LAST_ERROR_OPTION, '', false);
+        // A confirmed eligibility means the server accepted our credentials; any prior
+        // community sync error (e.g. stale Zod validation from a version mismatch) is now stale.
+        if (!empty($payload['eligible'])) {
+            delete_option(WPA_COMMUNITY_LAST_ERROR_OPTION);
+        }
     }
 
     public function clear_entitlement($status = self::STATUS_INACTIVE, $error = '') {

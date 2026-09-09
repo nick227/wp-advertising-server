@@ -45,6 +45,7 @@ final class WPA_Plugin {
         add_action('admin_post_wp_advertising_save_main_settings', [$this->admin, 'handle_save_main_settings']);
         add_action('admin_post_wp_advertising_save_community_shortcode', [$this->admin, 'handle_save_community_shortcode']);
         add_action('admin_post_wp_advertising_refresh_license', [$this->admin, 'handle_refresh_license']);
+        add_action('admin_post_wp_advertising_activate_license', [$this->admin, 'handle_activate_license']);
 
         add_action('admin_post_wp_advertising_upgrade_pro', [$this->admin, 'handle_upgrade_pro']);
 
