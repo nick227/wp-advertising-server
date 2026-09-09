@@ -94,9 +94,9 @@ When you configure a WP Advertising API URL, the plugin communicates with the WP
 All requests use HTTPS. No passwords, post content, or private WordPress data are transmitted. Community ad serving requests are only made when community participation is explicitly enabled.
 
 **Service information:**
-WP Advertising service — https://wp-advertising.example.com
-Terms of Service — https://wp-advertising.example.com/terms
-Privacy Policy — https://wp-advertising.example.com/privacy
+WP Advertising service — https://wp-advertising-server-production.up.railway.app
+Terms of Service — https://wp-advertising-server-production.up.railway.app/terms
+Privacy Policy — https://wp-advertising-server-production.up.railway.app/privacy
 
 == Privacy ==
 
@@ -104,7 +104,7 @@ Privacy Policy — https://wp-advertising.example.com/privacy
 
 **Community network:** When community participation is active, your site URL and house ad creative (image URL, destination URL, title) are shared with the WP Advertising service. Community ad serving requests include your site URL. Your admin email is shared with the service during initial registration and may be used for account communication.
 
-**Data transmitted to the external service** is governed by the WP Advertising Privacy Policy at https://wp-advertising.example.com/privacy.
+**Data transmitted to the external service** is governed by the WP Advertising Privacy Policy at https://wp-advertising-server-production.up.railway.app/privacy.
 
 == Shortcodes ==
 

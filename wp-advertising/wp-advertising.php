@@ -4,7 +4,7 @@
 
  * Plugin Name: WP Advertising
 
- * Plugin URI: https://example.com/wp-advertising
+ * Plugin URI: https://wp-advertising-server-production.up.railway.app
 
  * Description: Create embeddable house ads, rotate WooCommerce products, opt into community ads, customize ad themes, preview ads live, and optionally track performance by ad, product, origin, and zone.
 
@@ -12,7 +12,7 @@
 
  * Author: WP Advertising
 
- * Author URI: https://example.com
+ * Author URI: https://wp-advertising-server-production.up.railway.app
 
  * Text Domain: wp-advertising
 
