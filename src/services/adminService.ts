@@ -46,7 +46,7 @@ export async function extendTrial(siteId: string, days?: number) {
     },
     select: siteSelect,
   });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate([siteId]);
   return updated;
 }
 
@@ -64,7 +64,7 @@ export async function grantPro(siteId: string, days: number) {
     },
     select: siteSelect,
   });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate([siteId]);
   return updated;
 }
 
@@ -75,7 +75,7 @@ export async function suspendSite(siteId: string) {
     data: { networkStatus: 'SUSPENDED', optedIn: false },
     select: siteSelect,
   });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate([siteId]);
   return updated;
 }
 
@@ -86,7 +86,7 @@ export async function revokeSite(siteId: string) {
     data: { networkStatus: 'REVOKED', optedIn: false, networkAccessUntil: new Date() },
     select: siteSelect,
   });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate([siteId]);
   return updated;
 }
 
@@ -97,7 +97,7 @@ export async function forceOptOut(siteId: string) {
     data: { optedIn: false },
     select: siteSelect,
   });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate([siteId]);
   return updated;
 }
 
@@ -117,7 +117,7 @@ export async function setAdStatus(adId: string, status: z.infer<typeof adStatusS
     where: { id: adId },
     data: { status },
   });
-  await rotationCache.invalidate();
+  await rotationCache.invalidate([ad.siteId]);
   return updated;
 }
 

@@ -112,16 +112,33 @@ export async function startTrial(input: z.infer<typeof entitlementAuthSchema>) {
   const { trialDays } = await getBillingConfig();
   if (!trialDays) throw forbidden('New trials are currently disabled');
   const accessUntil = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
-  const updated = await prisma.communitySite.update({
-    where: { id: site.id },
-    data: {
-      networkStatus: 'TRIAL',
-      networkTrialStartedAt: now,
-      networkAccessUntil: accessUntil,
-      lastSeenAt: now,
-    },
-  });
-  await rotationCache.invalidate();
+  // Compare the authenticated snapshot atomically: concurrent trials or billing
+  // updates must never overwrite the first allocated commercial terms.
+  let updated: CommunitySite;
+  try {
+    updated = await prisma.communitySite.update({
+      where: {
+        id: site.id,
+        status: site.status,
+        networkStatus: site.networkStatus,
+        networkTrialStartedAt: null,
+        networkAccessUntil: site.networkAccessUntil,
+      },
+      data: {
+        networkStatus: 'TRIAL',
+        networkTrialStartedAt: now,
+        networkAccessUntil: accessUntil,
+        lastSeenAt: now,
+      },
+    });
+  } catch (error) {
+    if (!(error && typeof error === 'object' && 'code' in error && error.code === 'P2025')) throw error;
+    updated = await authenticateForEntitlement(input);
+    if (!isSiteNetworkEligible(updated, now)) {
+      throw forbidden('Site entitlement changed; refresh before requesting a trial');
+    }
+  }
+  await rotationCache.invalidate([site.id]);
   return entitlementPayload(updated, now);
 }
 
@@ -136,80 +153,12 @@ export async function validateEntitlement(input: z.infer<typeof entitlementValid
   if (input.checkoutSessionId) {
     const { getStripe } = await import('./stripeClient.js');
     const { synchronizeStripe } = await import('./stripeEventHandlers.js');
-    const { getBillingConfig } = await import('./billingConfigService.js');
-    const stripe = getStripe();
-    const session = await stripe.checkout.sessions.retrieve(input.checkoutSessionId, {
-      expand: ['subscription', 'line_items'],
-    });
-    const billingConfig = await getBillingConfig();
-
-    if (
-      session &&
-      session.metadata?.siteId === site.id &&
-      session.payment_status === 'paid'
-    ) {
-      const plan = session.metadata?.plan as 'monthly' | 'annual' | 'oneTime';
-      const expectedPriceId = plan ? billingConfig[`${plan}PriceId`] : null;
-
-      if (session.mode === 'subscription' && session.subscription && expectedPriceId) {
-        const subscription = typeof session.subscription === 'string' ? null : session.subscription;
-        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
-        
-        let validPrice = false;
-        if (subscription && subscription.items?.data) {
-           validPrice = subscription.items.data.some((item: any) => item.price.id === expectedPriceId);
-        }
-
-        if (!subscription || (subscription.metadata?.siteId === site.id && validPrice)) {
-          await synchronizeStripe(subscriptionId, undefined, site.id);
-          const freshSite = await prisma.communitySite.findUnique({ where: { id: site.id } });
-          if (freshSite) site = freshSite;
-        }
-      } else if (session.mode === 'payment' && plan === 'oneTime' && expectedPriceId) {
-        let validPrice = false;
-        if (session.line_items?.data) {
-           validPrice = session.line_items.data.some((item: any) => item.price?.id === expectedPriceId);
-        }
-        
-        if (validPrice) {
-          const { nanoid } = await import('nanoid');
-          await prisma.$transaction(async (db) => {
-            let license = await db.license.findFirst({ where: { notes: `OneTime:${session.id}` } });
-            if (!license) {
-               const now = new Date();
-               license = await db.license.create({
-                  data: {
-                     licenseKey: `lic_${nanoid(32)}`,
-                     status: 'ACTIVE',
-                     expiresAt: null,
-                     customerEmail: session.customer_details?.email,
-                     notes: `OneTime:${session.id}`,
-                     stripeSyncedAt: now,
-                  }
-               });
-               const siteDomain = site.siteDomain;
-               await db.licenseActivation.create({
-                  data: {
-                     licenseId: license.id,
-                     siteId: site.id,
-                     domainSnapshot: siteDomain,
-                     lastValidatedAt: now,
-                  }
-               });
-               await db.communitySite.update({
-                  where: { id: site.id },
-                  data: {
-                     networkStatus: 'ACTIVE',
-                     networkAccessUntil: null,
-                  }
-               });
-            }
-          });
-          
-          const freshSite = await prisma.communitySite.findUnique({ where: { id: site.id } });
-          if (freshSite) site = freshSite;
-        }
-      }
+    const session = await getStripe().checkout.sessions.retrieve(input.checkoutSessionId);
+    if (session.metadata?.siteId === site.id && session.mode === 'subscription' && session.subscription) {
+      const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+      // Reconcile purchased terms from Stripe, regardless of today's offered Price.
+      await synchronizeStripe(subscriptionId, undefined, site.id);
+      site = await authenticateForEntitlement(input);
     }
   }
 

@@ -156,3 +156,10 @@ describe('mutations', () => {
     expect(rc.invalidate).toHaveBeenCalled();
   });
 });
+
+it('evicts the revoked site before rebuilding its cached eligibility', async () => {
+  p.communitySite.findUnique.mockResolvedValue(site);
+  p.communitySite.update.mockResolvedValue({ ...site, networkStatus: 'REVOKED' });
+  await request(app).post('/v1/admin/sites/site_1/revoke').set(ADMIN).send({}).expect(200);
+  expect(rc.invalidate).toHaveBeenCalledWith(['site_1']);
+});

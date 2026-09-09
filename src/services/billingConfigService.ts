@@ -15,7 +15,7 @@ export const billingConfigSchema = z.object({
   oneTimeAmount: z.number().int().min(0).max(100000000).optional().default(0),
   monthlyEnabled: z.boolean(),
   annualEnabled: z.boolean(),
-  oneTimeEnabled: z.boolean().optional().default(false),
+  oneTimeEnabled: z.literal(false).default(false),
   trialDays: z.number().int().min(0).max(365),
   failureGraceDays: z.number().int().min(0).max(30),
 }).strict().superRefine((value, ctx) => {
@@ -35,7 +35,7 @@ export async function getBillingConfig(db: Pick<Prisma.TransactionClient, 'billi
   const row = await db.billingConfig.findUnique({ where: { id: 1 } });
   if (!row) return { ...defaultBillingConfig, monthlyPriceId: config.stripePriceMonthly, annualPriceId: config.stripePriceAnnual };
   const { id: _id, updatedAt: _updatedAt, ...settings } = row;
-  return { ...defaultBillingConfig, ...settings };
+  return { ...defaultBillingConfig, ...settings, oneTimeEnabled: false };
 }
 
 export async function verifyPlanPrice(settings: PlansConfig, plan: 'monthly' | 'annual' | 'oneTime') {

@@ -202,3 +202,28 @@ describe('trial policy changes', () => {
     await request(app).post('/v1/entitlements/start-trial').send({ siteId: baseSite.id, apiKey: baseSite.publicKey }).expect(403);
   });
 });
+
+describe('concurrent trial allocation', () => {
+  it('returns the winning trial without changing its deadline', async () => {
+    const until = new Date(Date.now() + 7 * 86400000);
+    p.billingConfig.findUnique.mockResolvedValue({ trialDays: 14 });
+    p.communitySite.findUnique.mockReset().mockResolvedValueOnce(baseSite).mockResolvedValue({
+      ...baseSite, networkStatus: 'TRIAL', networkTrialStartedAt: new Date(), networkAccessUntil: until,
+    });
+    p.communitySite.update.mockReset().mockRejectedValueOnce({ code: 'P2025' });
+    const res = await request(app).post('/v1/entitlements/start-trial')
+      .send({ siteId: baseSite.id, apiKey: baseSite.publicKey }).expect(200);
+    expect(res.body.networkAccessUntil).toBe(until.toISOString());
+    expect(p.communitySite.update).toHaveBeenCalledTimes(1);
+    expect(p.communitySite.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ networkTrialStartedAt: null, networkStatus: null }),
+    }));
+  });
+  it('does not overwrite a concurrent revocation', async () => {
+    p.billingConfig.findUnique.mockResolvedValue({ trialDays: 14 });
+    p.communitySite.findUnique.mockReset().mockResolvedValueOnce(baseSite).mockResolvedValue({ ...baseSite, networkStatus: 'REVOKED' });
+    p.communitySite.update.mockReset().mockRejectedValueOnce({ code: 'P2025' });
+    await request(app).post('/v1/entitlements/start-trial')
+      .send({ siteId: baseSite.id, apiKey: baseSite.publicKey }).expect(403);
+  });
+});

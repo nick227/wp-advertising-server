@@ -44,6 +44,8 @@ The API is available at `http://localhost:4100/v1`.
 
 ---
 
+Billing configuration and rollout: [Billing operations](docs/billing.md).
+
 ## Testing
 
 ```bash

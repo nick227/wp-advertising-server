@@ -8,7 +8,7 @@ import { normalizeSiteUrl, publicHttpUrlSchema } from '../lib/urlUtils.js';
 import { requireStripeCheckout } from './stripeClient.js';
 
 export const checkoutSessionSchema = z.object({
-  plan: z.enum(['monthly', 'annual', 'oneTime']).default('monthly'),
+  plan: z.enum(['monthly', 'annual']).default('monthly'),
   email: z.string().trim().email().max(255).optional(),
   siteUrl: publicHttpUrlSchema,
   siteId: z.string().min(1).optional(),
@@ -33,11 +33,12 @@ export async function createCheckoutSession(input: z.infer<typeof checkoutSessio
     ? `${siteUrl}/wp-admin/admin.php?page=wp-advertising&stripe_canceled=1`
     : `${config.publicSiteUrl}/checkout?canceled=1`;
     
-  const mode = input.plan === 'oneTime' ? 'payment' : 'subscription';
+  const mode = 'subscription' as const;
   const effectiveConfig = {
     priceId,
     mode,
-    trialDays: settings.trialDays,
+    failureGraceDays: settings.failureGraceDays,
+    email: input.email || '',
     success_url,
     cancel_url,
     plan: input.plan
@@ -76,7 +77,7 @@ export async function createCheckoutSession(input: z.infer<typeof checkoutSessio
   }
   
   const session = await stripe.checkout.sessions.create(sessionData, input.siteId ? {
-    idempotencyKey: `checkout_${input.siteId}_${input.plan}_${priceId}_${configHash}`,
+    idempotencyKey: `checkout_${input.siteId}_${input.plan}_${priceId}_${configHash}_${Math.floor(Date.now() / 1800000)}`,
   } : undefined);
 
   if (!session.url) {

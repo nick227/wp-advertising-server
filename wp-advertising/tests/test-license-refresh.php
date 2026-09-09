@@ -2,6 +2,7 @@
 // Standalone regression checks; no WordPress install or network required.
 define('ABSPATH', __DIR__ . '/');
 define('HOUR_IN_SECONDS', 3600);
+define('WPA_COMMUNITY_LAST_ERROR_OPTION', 'community_last_error');
 define('WPA_DB_VERSION', 'test');
 define('WPA_RETENTION_HOOK', 'retention');
 define('WPA_RETENTION_DAYS_OPTION', 'retention_days');
@@ -12,6 +13,7 @@ $options = ['wp_advertising_db_version' => 'test'];
 $hooks = []; $scheduled = []; $schedule_calls = 0;
 function get_option($key, $default = false) { global $options; return $options[$key] ?? $default; }
 function update_option($key, $value, $autoload = false) { global $options; $options[$key] = $value; }
+function delete_option($key) { global $options; unset($options[$key]); }
 function add_option($key, $value, $unused = '', $autoload = false) { update_option($key, $value); }
 function sanitize_key($v) { return strtolower($v); }
 function sanitize_text_field($v) { return $v; }
