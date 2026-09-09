@@ -208,7 +208,7 @@ final class WPA_Public_Endpoints {
     }
 
     private function build_render_response() {
-        $ad_id = absint($_GET['ad_id'] ?? 0);
+        $ad_id = absint(wp_unslash($_GET['ad_id'] ?? 0));
         $zone = $this->repo->sanitize_zone(wp_unslash($_GET['zone'] ?? WPA_DEFAULT_ZONE));
         $track_param = isset($_GET['track']) ? strtolower((string) wp_unslash($_GET['track'])) : '1';
         $embed_tracking_allowed = !in_array($track_param, ['0', 'false', 'off', 'no'], true);
@@ -251,7 +251,7 @@ final class WPA_Public_Endpoints {
     }
 
     public function serve_render_jsonp() {
-        $callback = preg_replace('/[^A-Za-z0-9_.$]/', '', (string) wp_unslash($_GET['callback'] ?? ''));
+        $callback = preg_replace('/[^A-Za-z0-9_.$]/', '', wp_unslash((string) ($_GET['callback'] ?? '')));
         if (!$callback) {
             $callback = 'wpAdvertisingEmbed';
         }
@@ -290,7 +290,7 @@ final class WPA_Public_Endpoints {
             exit;
         }
 
-        $token = $this->repo->validate_event_token(wp_unslash($_GET['token'] ?? ''), 'impression');
+        $token = $this->repo->validate_event_token((string) wp_unslash($_GET['token'] ?? ''), 'impression');
         if (!is_wp_error($token)) {
             $this->repo->log_event('impression', $token['ad_id'], $token['product_id'], $token['zone']);
         }
@@ -301,7 +301,7 @@ final class WPA_Public_Endpoints {
     }
 
     public function track_click_redirect() {
-        $token = $this->repo->validate_event_token(wp_unslash($_GET['token'] ?? ''), 'click');
+        $token = $this->repo->validate_event_token((string) wp_unslash($_GET['token'] ?? ''), 'click');
         if (is_wp_error($token)) {
             wp_safe_redirect(home_url('/'), 302);
             exit;

@@ -28,11 +28,14 @@ delete_option('wp_advertising_license_rules');
 delete_option('wp_advertising_license_next_check_at');
 delete_option('wp_advertising_license_last_error');
 delete_option('wp_advertising_license_key');
+delete_option('wp_advertising_latest_version');
+delete_option('wp_advertising_latest_download_url');
+delete_option('wp_advertising_heartbeat_next_at');
+delete_option('wp_advertising_public_release_check_next_at');
 
 if (defined('WPA_REMOVE_DATA_ON_UNINSTALL') && WPA_REMOVE_DATA_ON_UNINSTALL) {
     wp_clear_scheduled_hook('wp_advertising_refresh_entitlement');
-
-global $wpdb;
+    global $wpdb;
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}wp_advertising_events");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}wp_advertising_ads");
 }

@@ -1350,6 +1350,63 @@ final class WPA_Repository {
         ], $target_url);
     }
 
+    // Public, unauthenticated release check for free/unconnected sites.
+    // Sends no site identity, credentials, or telemetry.
+    public function check_public_release() {
+        $api = $this->get_community_api_url();
+        if (!$api) {
+            return false;
+        }
+        $endpoint = esc_url_raw(untrailingslashit($api) . '/plugin/release');
+        $response = wp_remote_get($endpoint, [
+            'timeout'     => 3,
+            'redirection' => 2,
+            'user-agent'  => 'WP Advertising/' . WPA_VERSION . '; ' . home_url('/'),
+            'headers'     => ['Accept' => 'application/json'],
+        ]);
+        if (is_wp_error($response)) {
+            return false;
+        }
+        $code = (int) wp_remote_retrieve_response_code($response);
+        if ($code !== 200) {
+            return false;
+        }
+        $body = json_decode(trim((string) wp_remote_retrieve_body($response)), true);
+        if (!is_array($body)) {
+            return false;
+        }
+        $latest = sanitize_text_field((string) ($body['version'] ?? ''));
+        if ($latest && version_compare($latest, '0.0.1', '>=')) {
+            update_option(WPA_LATEST_VERSION_OPTION, $latest, false);
+        }
+        $url = esc_url_raw((string) ($body['download'] ?? ''));
+        if ($url) {
+            update_option(WPA_LATEST_DOWNLOAD_URL_OPTION, $url, false);
+        }
+        return true;
+    }
+
+    public function send_heartbeat() {
+        $auth = $this->community_auth_payload();
+        if (empty($auth['siteId']) || empty($auth['apiKey'])) {
+            return false;
+        }
+        $result = $this->community_api_request('POST', '/sites/heartbeat', $auth);
+        if (is_wp_error($result) || !is_array($result) || (int) ($result['code'] ?? 0) !== 200) {
+            return false;
+        }
+        $body = $result['body'];
+        $latest = sanitize_text_field((string) ($body['latestPluginVersion'] ?? ''));
+        if ($latest && version_compare($latest, '0.0.1', '>=')) {
+            update_option(WPA_LATEST_VERSION_OPTION, $latest, false);
+        }
+        $url = esc_url_raw((string) ($body['pluginDownloadUrl'] ?? ''));
+        if ($url) {
+            update_option(WPA_LATEST_DOWNLOAD_URL_OPTION, $url, false);
+        }
+        return true;
+    }
+
     public function search_products($term, $limit = 10) {
         if (!$this->wc_active()) {
             return [];

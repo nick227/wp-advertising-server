@@ -4,6 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import { forbidden, notFound } from '../lib/errors.js';
 import { normalizeDomain, normalizeSiteUrl, publicHttpUrlSchema } from '../lib/urlUtils.js';
 import { rotationCache } from './rotationCache.js';
+import { config } from '../config.js';
+import { releaseManifest } from './releaseManifest.js';
 import { requireNetworkEntitlement } from './entitlementService.js';
 
 export const registerSiteSchema = z.object({
@@ -95,7 +97,7 @@ export async function authenticateSite(input: z.infer<typeof authSiteSchema>) {
 
 export async function heartbeat(input: z.infer<typeof authSiteSchema>) {
   await authenticateSite(input);
-  return prisma.communitySite.update({
+  const site = await prisma.communitySite.update({
     where: { id: input.siteId },
     data: { lastSeenAt: new Date() },
     select: {
@@ -107,6 +109,13 @@ export async function heartbeat(input: z.infer<typeof authSiteSchema>) {
       networkAccessUntil: true,
     },
   });
+  if (!releaseManifest.version) return site;
+  const { download } = releaseManifest;
+  return {
+    ...site,
+    latestPluginVersion: releaseManifest.version,
+    pluginDownloadUrl: download.startsWith('/') ? config.publicSiteUrl + download : download,
+  };
 }
 
 export async function setOptIn(input: z.infer<typeof optInSchema>) {

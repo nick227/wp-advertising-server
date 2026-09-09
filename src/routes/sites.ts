@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { registerSiteSchema, optInSchema, authSiteSchema, registerSite, heartbeat, setOptIn } from '../services/siteService.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { config } from '../config.js';
+import { releaseManifest } from '../services/releaseManifest.js';
 
 export const sitesRouter = Router();
 
@@ -39,4 +40,18 @@ sitesRouter.post('/sites/opt-out', rateLimit('write', config.rateLimitWriteMax),
   } catch (error) {
     next(error);
   }
+});
+
+// Public, unauthenticated — returns only latest version and download URL.
+// No site identity or telemetry. Used by free/unconnected plugin installs for update awareness.
+sitesRouter.get('/plugin/release', rateLimit('serve', config.rateLimitServeMax), (_req, res) => {
+  if (!releaseManifest.version) {
+    res.status(503).json({ error: { message: 'Release info unavailable' } });
+    return;
+  }
+  const { download } = releaseManifest;
+  res.json({
+    version: releaseManifest.version,
+    download: download.startsWith('/') ? config.publicSiteUrl + download : download,
+  });
 });

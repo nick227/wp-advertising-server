@@ -78,8 +78,6 @@ define('WPA_LICENSE_KEY_OPTION', 'wp_advertising_license_key');
 
 define('WPA_DEFAULT_COMMUNITY_API_URL', '');
 
-define('WPA_COMMUNITY_ENDPOINT', 'https://community.wp-advertising.example/v1/ad');
-
 define('WPA_NONCE_ACTION', 'wp_advertising_save_ad');
 
 define('WPA_EVENT_TOKEN_TTL', 6 * HOUR_IN_SECONDS);
@@ -92,6 +90,11 @@ define('WPA_COMMUNITY_CACHE_SCHEMA', 2);
 define('WPA_COMMUNITY_FRESH_TTL',    5 * MINUTE_IN_SECONDS);
 define('WPA_COMMUNITY_STALE_TTL',    60 * MINUTE_IN_SECONDS);
 define('WPA_COMMUNITY_LOCK_TTL',     30);
+
+define('WPA_LATEST_VERSION_OPTION',          'wp_advertising_latest_version');
+define('WPA_LATEST_DOWNLOAD_URL_OPTION',     'wp_advertising_latest_download_url');
+define('WPA_HEARTBEAT_NEXT_OPTION',          'wp_advertising_heartbeat_next_at');
+define('WPA_PUBLIC_RELEASE_CHECK_NEXT_OPTION', 'wp_advertising_public_release_check_next_at');
 
 
 

@@ -36,6 +36,9 @@ final class WPA_Plugin {
         add_action('current_screen', [$this->admin, 'suppress_unrelated_admin_notices']);
         add_action('admin_enqueue_scripts', [$this->admin, 'enqueue_assets']);
         add_action('admin_init', [$this, 'maybe_refresh_entitlement']);
+        add_action('admin_init', [$this, 'maybe_heartbeat']);
+        add_action('admin_init', [$this, 'maybe_public_release_check']);
+        add_action('admin_notices', [$this->admin, 'render_update_notice']);
         add_action('wp_advertising_refresh_entitlement', [$this, 'scheduled_refresh_entitlement']);
         add_action('admin_post_wp_advertising_save_ad', [$this->admin, 'handle_save_ad']);
         add_action('admin_post_wp_advertising_delete_ad', [$this->admin, 'handle_delete_ad']);
@@ -85,5 +88,44 @@ final class WPA_Plugin {
             return;
         }
         $this->license->maybe_validate(false);
+    }
+
+    public function maybe_heartbeat() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        if (!$this->repo->get_community_api_url()) {
+            return;
+        }
+        $next = absint(get_option(WPA_HEARTBEAT_NEXT_OPTION, 0));
+        if ($next > time()) {
+            return;
+        }
+        if ($this->repo->send_heartbeat()) {
+            update_option(WPA_HEARTBEAT_NEXT_OPTION, time() + 4 * HOUR_IN_SECONDS, false);
+        }
+    }
+
+    // For free/unconnected sites: public unauthenticated check, once per 24 hours.
+    // Skipped when the authenticated heartbeat is the active channel (credentials exist).
+    public function maybe_public_release_check() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        if (!$this->repo->get_community_api_url()) {
+            return;
+        }
+        // Authenticated heartbeat handles version checks for connected sites.
+        $credentials = $this->repo->get_community_credentials();
+        if (!empty($credentials['siteId']) && !empty($credentials['publicKey'])) {
+            return;
+        }
+        $next = absint(get_option(WPA_PUBLIC_RELEASE_CHECK_NEXT_OPTION, 0));
+        if ($next > time()) {
+            return;
+        }
+        if ($this->repo->check_public_release()) {
+            update_option(WPA_PUBLIC_RELEASE_CHECK_NEXT_OPTION, time() + 24 * HOUR_IN_SECONDS, false);
+        }
     }
 }

@@ -37,6 +37,8 @@ final class WPA_Admin_Pages {
         remove_all_actions('all_admin_notices');
         remove_all_actions('network_admin_notices');
         remove_all_actions('user_admin_notices');
+        // Re-add our own update notice so it shows on WP Advertising pages too.
+        add_action('admin_notices', [$this, 'render_update_notice']);
     }
 
     private function is_wp_advertising_admin_page() {
@@ -57,6 +59,34 @@ final class WPA_Admin_Pages {
             'productSearchNonce' => wp_create_nonce('wp_advertising_product_search'),
             'themeClassPrefix' => 'wpa-theme-',
         ]);
+    }
+
+    public function render_update_notice() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        $latest = sanitize_text_field((string) get_option(WPA_LATEST_VERSION_OPTION, ''));
+        if (!$latest || !version_compare($latest, WPA_VERSION, '>')) {
+            return;
+        }
+        $download_url = esc_url((string) get_option(WPA_LATEST_DOWNLOAD_URL_OPTION, ''));
+        ?>
+        <div class="notice notice-warning">
+            <p>
+                <?php printf(
+                    /* translators: 1: latest version number, 2: installed version number */
+                    esc_html__('WP Advertising %1$s is available. You are running %2$s.', 'wp-advertising'),
+                    '<strong>' . esc_html($latest) . '</strong>',
+                    '<strong>' . esc_html(WPA_VERSION) . '</strong>'
+                ); ?>
+                <?php if ($download_url) : ?>
+                    &nbsp;<a href="<?php echo esc_url($download_url); ?>" class="button button-secondary">
+                        <?php esc_html_e('Download update', 'wp-advertising'); ?>
+                    </a>
+                <?php endif; ?>
+            </p>
+        </div>
+        <?php
     }
 
     public function handle_save_ad() {
@@ -175,7 +205,15 @@ final class WPA_Admin_Pages {
             exit;
         }
         
-        wp_redirect($checkout_url);
+        // External Stripe URL — add its host to the safe-redirect allowlist before redirecting.
+        $checkout_host = wp_parse_url($checkout_url, PHP_URL_HOST);
+        if ($checkout_host) {
+            add_filter('allowed_redirect_hosts', static function ($hosts) use ($checkout_host) {
+                $hosts[] = $checkout_host;
+                return $hosts;
+            });
+        }
+        wp_safe_redirect($checkout_url, 302);
         exit;
     }
 
